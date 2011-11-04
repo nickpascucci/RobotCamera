@@ -1,0 +1,5 @@
+                              Robot Camera Project
+
+This project is aimed at creating a simple rover robot which contains a JPEG
+camera and a Propeller microcontroller, which is able to identifiy simple shapes
+and navigational cues.
