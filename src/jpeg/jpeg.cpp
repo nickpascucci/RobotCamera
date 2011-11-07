@@ -14,20 +14,29 @@
 #define ML_BYTE 9
 #define KH_BYTE 12
 #define KL_BYTE 13
-#define XX1_BYTE 14
-#define XX2_BYTE 15
 
 bool capture(boost::asio::serial_port&);
 uint16_t read_size(boost::asio::serial_port&);
 void read_jpeg(boost::asio::serial_port&, std::ofstream&);
 
 int main(int argc, char **argv){
-  std::string port = "/dev/ttyUSB0";
+  if(argc < 3){
+    std::cout << "Usage: jpegcap [DEVICE] [FILE]" << std::endl;
+    std::cout << "Capture a JPEG image from the LinkSprite JPEG camera on the"
+              << " given device, and write it to a file." << std::endl;
+    std::cout << "DEVICE is a serial port, generally /dev/ttyUSB0 or COM1."
+              << std::endl;
+    std::cout << "FILE is the output filename." << std::endl;
+    return 1;
+  }
+
+  std::string port(argv[1]);
 
   // Open serial port and JPEG file
-  std::ofstream output_file("out.jpg");
+  std::ofstream output_file(argv[2]); // Won't take a std::string, so pass char*
   boost::asio::io_service io;
   boost::asio::serial_port ser_port( io, port);
+  
   ser_port.set_option(boost::asio::serial_port_base::baud_rate(38400));
 
   if(not ser_port.is_open()){
@@ -45,7 +54,7 @@ int main(int argc, char **argv){
 
   // Countdown!
   for(int i = 3; i > 0; i--){
-    std::cout << "\rTaking image in " << i << " seconds." << std::flush;
+    std::cout << "\rTaking image in " << i << "s." << std::flush;
     sleep(1);
   }
   std::cout << std::endl;
@@ -115,8 +124,8 @@ void read_jpeg(boost::asio::serial_port& ser_port, std::ofstream& output_file){
   uint16_t m = 0; // Start address
   uint16_t k = 32; // Chunk size
 
-  uint16_t bytes_read = 0;
   uint16_t file_size = read_size(ser_port);
+  uint16_t bytes_read = 0;
   uint8_t last_byte = 0;
 
   bool done = false;
@@ -144,22 +153,21 @@ void read_jpeg(boost::asio::serial_port& ser_port, std::ofstream& output_file){
 
     // Check for cross-packet end sequence
     if(last_byte == 0xFF && jpeg_data[0] == 0xD9){
-      std::cout << "Finished read due to end sequence." << std::endl;
       done = true;
     }
 
     // We're going to jump over the first byte, better write it out.
     output_file << jpeg_data[0];
+    bytes_read++;
 
     // Write out the remaining bytes, and check to see if we've read the end.
-    int i; // Need this for reference later
-    for(i = 1; i < 32; i++){
+    for(int i = 1; i < 32; i++){
       // Write data to output file...
       output_file << jpeg_data[i];
+      bytes_read++;
 
       // Check for the end of the file.
       if(jpeg_data[i - 1] == 0xFF && jpeg_data[i] == 0xD9){
-        std::cout << "Finished read." << std::endl;
         done = true;
         break;
       }
@@ -167,7 +175,6 @@ void read_jpeg(boost::asio::serial_port& ser_port, std::ofstream& output_file){
 
     // Stash our last byte to check for end sequence if it spans packets
     last_byte = jpeg_data[31];
-    bytes_read += i;
 
     // Read footer, check for error conditions
     uint8_t footer[5] = { 0x00 };
@@ -179,7 +186,8 @@ void read_jpeg(boost::asio::serial_port& ser_port, std::ofstream& output_file){
 
     // Update address.
     m += 32;
-    std::cout << "\rRead " << bytes_read << " of " << file_size << std::flush;
+    std::cout << "\rRead " << bytes_read << " of " << file_size 
+              << " bytes." << std::flush;
   }
   std::cout << std::endl;
 }
