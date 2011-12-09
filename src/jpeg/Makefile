@@ -1,7 +1,7 @@
 APP_NAME = jpegcap
 SRC = jpeg.cpp
 CXX = g++
-CC_OPTS = -Wall -o $(APP_NAME)
+CC_OPTS = -Wall -o $(APP_NAME) -ggdb
 LIBS = -lboost_system
 LIB_PATH = -L/usr/lib/
 
