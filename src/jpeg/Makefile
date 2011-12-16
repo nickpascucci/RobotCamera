@@ -1,14 +1,16 @@
-APP_NAME = jpegcap
-SRC = jpeg.cpp
 CXX = g++
-CC_OPTS = -Wall -o $(APP_NAME) -ggdb
-LIBS = -lboost_system
-LIB_PATH = -L/usr/lib/
+CC_OPTS = -Wall -ggdb
+LIBS = -lboost_system -ljpeg -lpthread
+LIB_PATH = 
+INCLUDES = 
 
-all: jpeg
+all: capture preprocess
 
-jpeg:
-	$(CXX) $(CC_OPTS) $(LIBS) $(LIB_PATH) $(SRC) 
+capture: capture.cpp
+	$(CXX) $(CC_OPTS) $(INCLUDES) $(LIBS) $(LIB_PATH) capture.cpp -o capture
+
+preprocess: preprocess.cpp
+	$(CXX) $(CC_OPTS) $(INCLUDES) $(LIBS) $(LIB_PATH) preprocess.cpp -o preprocess
 
 clean: 
-	rm $(APP_NAME)
+	rm capture preprocess *.o *.d 
