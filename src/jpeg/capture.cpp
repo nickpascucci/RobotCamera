@@ -47,7 +47,7 @@ int main(int argc, char **argv){
 
   // Reset the camera.
   uint8_t reset[] = { 0x56, 0x00, 0x26, 0x00 };
-  boost::asio::write(ser_port, boost::asio::buffer(reset, 5));
+  boost::asio::write(ser_port, boost::asio::buffer(reset, 4));
 
   // Read out initialization message.
   uint8_t discard[100] = { 0xff };
