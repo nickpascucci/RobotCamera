@@ -1,13 +1,14 @@
 /*
-  jpeg.cpp - A test to read data from the Linksprite JPEG camera.
+  capture.cpp - A tool to read data from the Linksprite JPEG camera.
  */
 
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <unistd.h>
-#include <boost/system/error_code.hpp>
 #include <boost/asio.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/system/error_code.hpp>
 
 #define BUF_SIZE 64
 #define MH_BYTE 8
@@ -20,14 +21,14 @@ uint16_t read_size(boost::asio::serial_port&);
 void read_jpeg(boost::asio::serial_port&, std::ofstream&);
 
 int main(int argc, char **argv){
-  if(argc < 3){
-    std::cout << "Usage: jpegcap [DEVICE] [FILE]" << std::endl;
-    std::cout << "Capture a JPEG image from the LinkSprite JPEG camera on the"
-              << " given device, and write it to a file." << std::endl;
-    std::cout << "DEVICE is a serial port, generally /dev/ttyUSB0 or COM1."
-              << std::endl;
-    std::cout << "FILE is the output filename." << std::endl;
+  if(argc < 3 || argc > 4){
+    std::cout << "Usage: capture <device> <file> [<baud rate>]" << std::endl;
     return 1;
+  }
+  int baud_rate = 38400; // default baud rate
+  if(argc == 4){
+    baud_rate = boost::lexical_cast<int>(argv[3]);
+    std::cout << "Connecting at " << baud_rate << " baud." << std::endl;
   }
 
   std::string port(argv[1]);
@@ -35,9 +36,9 @@ int main(int argc, char **argv){
   // Open serial port and JPEG file
   std::ofstream output_file(argv[2]); // Won't take a std::string, so pass char*
   boost::asio::io_service io;
-  boost::asio::serial_port ser_port( io, port);
+  boost::asio::serial_port ser_port(io, port);
   
-  ser_port.set_option(boost::asio::serial_port_base::baud_rate(38400));
+  ser_port.set_option(boost::asio::serial_port_base::baud_rate(baud_rate));
 
   if(not ser_port.is_open()){
     std::cout << "Failed to open serial port " << port << std::endl;
@@ -60,7 +61,8 @@ int main(int argc, char **argv){
   std::cout << std::endl;
 
   // Instruct the camera to capture an image
-  std::cout << "Capturing image...";
+  std::cout << "Capturing image... "; // Need space at end for failure message.
+
   if(capture(ser_port)){ // Success!
     std::cout << " Done." << std::endl;
     std::cout << "Reading image from camera..." << std::endl;
