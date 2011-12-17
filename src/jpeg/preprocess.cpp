@@ -8,14 +8,22 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <boost/gil/extension/io/jpeg_io.hpp>
+#include <Magick++.h>
 
 int main(int argc, char **argv){
   if(argc < 2){
     std::cout << "Usage: preprocess <file>" << std::endl;
     return 1;
   }
-  boost::gil::point2<std::ptrdiff_t> size = boost::gil::jpeg_read_dimensions(argv[1]);
-  std::cout << "Image dimensions: " << size[0] << "x" << size[1] << std::endl;
-
+  
+  using namespace Magick;
+  Image image;
+  image.read(argv[1]);
+  double xres = image.yResolution();
+  double yres = image.yResolution();
+  std::cout << "Read in image, resolution " << xres << "x"
+            << yres << std::endl;
+  image.type(GrayscaleType);
+  image.write("out.jpg");
+  return 0;
 }

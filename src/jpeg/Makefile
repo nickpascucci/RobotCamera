@@ -1,8 +1,8 @@
 CXX = g++
 CC_OPTS = -Wall -ggdb
-LIBS = -lboost_system -ljpeg -lpthread
+LIBS = -lboost_system -lpthread -lMagick++
 LIB_PATH = 
-INCLUDES = 
+INCLUDES = -I/usr/include/ImageMagick
 
 all: capture preprocess
 
