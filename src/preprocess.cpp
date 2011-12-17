@@ -19,8 +19,9 @@ int main(int argc, char **argv){
   using namespace Magick;
   Image image;
   image.read(argv[1]);
-  double xres = image.yResolution();
-  double yres = image.yResolution();
+  Geometry image_geom = image.size();
+  size_t xres = image_geom.width();
+  size_t yres = image_geom.height();
   std::cout << "Read in image, resolution " << xres << "x"
             << yres << std::endl;
   image.type(GrayscaleType);

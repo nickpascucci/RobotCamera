@@ -45,13 +45,13 @@ int main(int argc, char **argv){
     return 3;
   }
 
-  // Reset the camera.
-  uint8_t reset[] = { 0x56, 0x00, 0x26, 0x00 };
-  boost::asio::write(ser_port, boost::asio::buffer(reset, 4));
+  // // Reset the camera.
+  // uint8_t reset[] = { 0x56, 0x00, 0x26, 0x00 };
+  // boost::asio::write(ser_port, boost::asio::buffer(reset, 4));
 
-  // Read out initialization message.
-  uint8_t discard[100] = { 0xff };
-  boost::asio::read(ser_port, boost::asio::buffer(discard, 71));
+  // // Read out initialization message.
+  // uint8_t discard[100] = { 0xff };
+  // boost::asio::read(ser_port, boost::asio::buffer(discard, 71));
 
   // Countdown!
   for(int i = 3; i > 0; i--){

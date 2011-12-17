@@ -14,6 +14,8 @@ int change_baud_rate(std::string, int);
 int get_baud_selection(void);
 bool send_and_verify(std::string, int, uint8_t*, std::size_t, 
                      uint8_t*, std::size_t);
+void send_and_clear(std::string port, int baud_rate, uint8_t *command,
+                    std::size_t clen, std::size_t discard_bytes);
 
 int main(int argc, char** argv){
   if(argc < 3){
@@ -29,8 +31,21 @@ int main(int argc, char** argv){
   std::cout << "LinkSprite Camera Configuration Tool v1.0" << std::endl;
   std::cout << "Working on device " << port << " at baud " << baud_rate << "." 
             << std::endl;
+
+  // Reset the device to make sure it works
+  std::cout << "Attempting to reset device... " << std::flush;
+  uint8_t reset[] = {0x56, 0x00, 0x26, 0x00};
+  uint8_t reset_reply[] = {0x76, 0x00, 0x26, 0x00};
+
+  if(!send_and_verify(port, baud_rate, reset, 4, reset_reply, 4)){
+    std::cout << "Reset was unsuccessful, aborting!" << std::endl;
+    return 1;
+  }
+  std::cout << "Success!" << std::endl;
+
   std::cout << "What do you want to do?" << std::endl;
-    
+
+  // Ok, now for a menu.
   while(true){
     std::cout << "Change [r]esolution" << std::endl;
     std::cout << "Change [b]aud rate" << std::endl;
@@ -53,6 +68,8 @@ int main(int argc, char** argv){
       }
     }
     else if(operation == 'q' || operation == 'Q'){
+      std::cout << "Reminder: current baud rate is " << baud_rate 
+                << "." << std::endl;
       return 0;
     }
   }
@@ -156,41 +173,22 @@ int change_baud_rate(std::string port, int current_baud){
   baud_set_command[5] = baud_component[0];
   baud_set_command[6] = baud_component[1];
 
+  std::cout << "DEBUG: Array contents" << std::endl;
+  for(int i=0; i<7; i++){
+    int br = baud_set_command[i];
+    std::cout << std::hex << br << " ";
+  }
+  std::cout << std::flush << std::dec << std::endl;
+
   if(send_and_verify(port, current_baud, baud_set_command, 7, 
                      baud_return_success, 5)){
+    std::cout << "Baud rate set successfully. Now communicating at " 
+              << baud_rate << " baud." << std::endl;
     return baud_rate;
   }
   else {
     return -1;
   }
-
-  // // Set up a serial connection to the device with our current baud rate
-  // boost::asio::io_service io;
-  // boost::asio::serial_port ser_port(io, port);
-  // ser_port.set_option(boost::asio::serial_port_base::baud_rate(baud_rate));
-  
-  // if(not ser_port.is_open()){
-  //   std::cout << "Failed to open serial port " << port << std::endl;
-  //   return -1;
-  // }
-
-  // // Send the packet
-  // boost::asio::write(ser_port, boost::asio::buffer(baud_set_command, 7));
-
-  // // Check the reply from the device
-  // uint8_t reply[5] = { 0x00 };
-  // boost::asio::read(ser_port, boost::asio::buffer(reply, 5));
-
-  // for(int i = 0; i < 5; i++){
-  //   if(reply[i] != baud_return_success[i]){
-  //     std::cout << "I/O error, baud rate not confirmed. Device may be in an "
-  //               << "inconsistent state." << std::endl;
-  //     return -1;
-  //   }
-  // }
-
-  // We've confirmed all's well, so we'll go back to the menu.
-  // return baud_rate;
 }
 
 int get_baud_selection(){
@@ -226,7 +224,6 @@ bool send_and_verify(std::string port, int baud_rate, uint8_t *command,
     std::cout << "Failed to open serial port " << port << std::endl;
     return false;
   }
-
   // Send the packet
   boost::asio::write(ser_port, boost::asio::buffer(command, clen));
 
@@ -237,12 +234,37 @@ bool send_and_verify(std::string port, int baud_rate, uint8_t *command,
   bool pass_verification = true;
   boost::asio::read(ser_port, boost::asio::buffer(reply, vlen));
 
+  // Verify the reply is correct...
   for(std::size_t i = 0; i < vlen; i++){
     if(reply[i] != verification[i]){
       pass_verification = false;
     }
   }
 
+  ser_port.close();
   delete [] reply; // Free up that memory.
   return pass_verification;
+}
+
+void send_and_clear(std::string port, int baud_rate, uint8_t *command,
+                    std::size_t clen, std::size_t discard_bytes){
+  // Set up a serial connection to the device with our current baud rate
+  boost::asio::io_service io;
+  boost::asio::serial_port ser_port(io, port);
+  ser_port.set_option(boost::asio::serial_port_base::baud_rate(baud_rate));
+
+  if(not ser_port.is_open()){
+    std::cout << "Failed to open serial port " << port << std::endl;
+    return;
+  }
+
+  // Send the packet
+  boost::asio::write(ser_port, boost::asio::buffer(command, clen));
+  
+  // Discard the reply from the device
+  uint8_t *reply; // Reply array allocated dynamically
+  reply = new uint8_t[discard_bytes];
+  boost::asio::read(ser_port, boost::asio::buffer(reply, discard_bytes));
+  ser_port.close();
+  delete [] reply; // Free up that memory.
 }
