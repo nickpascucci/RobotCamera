@@ -173,13 +173,6 @@ int change_baud_rate(std::string port, int current_baud){
   baud_set_command[5] = baud_component[0];
   baud_set_command[6] = baud_component[1];
 
-  std::cout << "DEBUG: Array contents" << std::endl;
-  for(int i=0; i<7; i++){
-    int br = baud_set_command[i];
-    std::cout << std::hex << br << " ";
-  }
-  std::cout << std::flush << std::dec << std::endl;
-
   if(send_and_verify(port, current_baud, baud_set_command, 7, 
                      baud_return_success, 5)){
     std::cout << "Baud rate set successfully. Now communicating at " 
