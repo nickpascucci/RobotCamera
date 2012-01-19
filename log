@@ -1,8 +1,9 @@
-* TODO First Steps
-** TODO [ ] TODO Read a JPEG file from the camera [1/2]
-   - [X] C++
-   - [ ] Spin
-** TODO [ ] TODO Get familiar with Spin [0/1]
-   - [ ] Set up on Linux
-
+Wednesday, January 04 2012 04:45:02 PM 
+nick
+Imported directory tree into new project.
+Wednesday, January 04 2012 05:59:44 PM 
+nick
+I found a way to transfer files over the serial connection; it's an application
+called kermit which is maintained by Columbia. I'll put it on the PandaBoard the
+next time I'm working on this.
 

@@ -1,8 +1,10 @@
 CXX = g++
-CC_OPTS = -Wall -ggdb
-LIBS = -lboost_system -lpthread -lMagick++
+CC_OPTS = -Wall -ggdb -pthread
+LIBS = -lboost_system -lMagick++
 LIB_PATH = 
+ARM_LIB_PATH = -L/home/nick/dev/arm/lib/ImageMagick/lib -L/home/nick/dev/arm/lib/boost_1_48_0/stage/lib
 INCLUDES = -I/usr/include/ImageMagick
+ARM_INCLUDES = -I/home/nick/dev/arm/lib/ImageMagick/include -I/home/nick/dev/arm/lib/boost_1_48_0
 
 all: capture preprocess configure camtool
 
@@ -17,5 +19,9 @@ configure: configure.cpp
 
 camtool: camtool.cpp
 	$(CXX) $(CC_OPTS) $(INCLUDES) $(LIBS) $(LIB_PATH) camtool.cpp -o camtool
+
+camtool-arm: camtool.cpp
+	$(CXX) $(CC_OPTS) $(ARM_INCLUDES) camtool.cpp -o camtool-arm $(LIBS) $(ARM_LIB_PATH)
+
 clean: 
 	rm capture preprocess *.o *.d 
