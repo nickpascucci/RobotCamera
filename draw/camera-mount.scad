@@ -1,3 +1,4 @@
+/* -*- mode: c; fill-column: 80; -*- */
 // Mounting bracket for camera
 // Nick Pascucci
 // December, 2011
@@ -5,6 +6,7 @@
 camera_mount();
 
 module camera_mount(){
+  // Customization parameters
   slot_width = 33; // Width of the top of the T slot
   slot_base = 28; // Width of the base of the slot
   slot_thickness = 6; // Height of the slot's two portions in the X
@@ -14,12 +16,14 @@ module camera_mount(){
   bracket_thickness = 5; // Thickness of the bracket interface
   hole_size = 3; // Size of the screw holes
   hole_separation = 20; // Separation of the two holes
+
+  // Precomputed variables
   bracket_length = (2 * slot_thickness + bracket_thickness + bracket_depth);
 
   difference(){
     cube([bracket_length, bracket_width, bracket_height]);
-    translate([0, (bracket_width - slot_base)/2, 0]){
-      t_slot(slot_base, slot_width, slot_thickness, bracket_height);
+    translate([0, (bracket_width - slot_base)/2, bracket_thickness]){
+      t_slot(slot_base, slot_width, slot_thickness, bracket_height - bracket_thickness);
     }
     translate([2 * slot_thickness + bracket_thickness, 0, bracket_thickness]){
       cube([bracket_depth, bracket_width, (bracket_height - bracket_thickness)]);
