@@ -30,7 +30,7 @@ controller to maintain a constant velocity and to record the distance traveled b
 enabling dead-reckoning position estimates to be performed. Second, a powerful camera assembly is
 mounted to the front frame of the robot which provides 640x480 pixel images for use in navigation
 and object detection. Image data is transmitted over a serial communications link directly to the
-PandaBoard controller, and images can be captured about once every 3 seconds. 
+PandaBoard controller, and images can be captured about once every 3 seconds.
 
 ### 4) Power Supply
 
@@ -39,6 +39,17 @@ over USB, but the PandaBoard draws more current than it can provide and can't co
 sequence. I may combine two such chargers to power the system.
 
 ## Software Design
+   .......................       ......................
+   .                     .       .    Internal        .
+   . Input/Sensor Module .........   State Module     .
+   .                     .       .  (Kalman Filter)   .
+   .......................       ......................
+             .                             .
+             .                             .
+   .......................       ......................         .......................
+   .   World State       .       .   Decision         .         .     Actuator        .
+   .    Module           .........    Module          ...........      Module         .
+   .......................       ......................         .......................
 
 ## Notes
 
@@ -47,3 +58,4 @@ sequence. I may combine two such chargers to power the system.
   microcontroller; however, the computational requirements of computer vision proved to be too great
   for that system and it was decided to upgrade to a PandaBoard. By that time a camera had already
   been purchased, and the system has been designed to work with it.
+

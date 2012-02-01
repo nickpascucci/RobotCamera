@@ -3,7 +3,7 @@
  resolutions, speeds, and compression ratios.
 
  Usage: camtool [-p<device>] [-f<file>] [-r<resolution>] [-b<rate>] [-t<rate>] 
-                [-c<ratio>] 
+                [-c<ratio>] [-v]
  
  Options:
   -p<device> Device file. Defaults to /dev/ttyUSB0.
@@ -16,6 +16,7 @@
              9600, 19200, 38400, 57600, 115200. Default: 115200
   -c<ratio>  Set the JPEG compression ratio. Available ratios:
              00 to FF
+  -v         Turn on verbose mode.
  */
 
 #include <fstream>
@@ -38,6 +39,7 @@ void read_jpeg(boost::asio::serial_port&, std::ofstream&);
 bool set_baud(boost::asio::serial_port&, int);
 bool set_resolution(boost::asio::serial_port&, int, int);
 bool set_compression(boost::asio::serial_port&, int);
+bool ends_with(std::string&, std::string&);
 
 struct Options{
   std::string out_file;
@@ -47,6 +49,7 @@ struct Options{
   int baud;
   int transfer;
   int compress;
+  bool verbose;
 };
 
 // Baud rate packets
@@ -68,9 +71,16 @@ uint8_t reset[] = { 0x56, 0x00, 0x26, 0x00 };
 int main(int argc, char **argv){
   struct Options options;
   get_options(options, argc, argv);
+  
+  if(options.verbose){
+    std::cout << "Options parsed, beginning run." << std::endl;
+  }
 
   // Open serial port and JPEG file
   std::ofstream output_file(options.out_file.c_str());
+  if(options.verbose){
+    std::cout << "Opened output file " << options.out_file << "." << std::endl;
+  }  
   boost::asio::io_service io;
   boost::asio::serial_port ser_port(io, options.port);
   
@@ -80,14 +90,33 @@ int main(int argc, char **argv){
   if(not ser_port.is_open()){
     std::cout << "Failed to open serial port " << options.port << std::endl;
     return 3;
+  } else if(options.verbose){
+    std::cout << "Opened serial port " << options.port << "." << std::endl;
   }
 
   // Reset the camera.
   boost::asio::write(ser_port, boost::asio::buffer(reset, 4));
+  if(options.verbose){
+    std::cout << "Camera reset sent." << std::endl;
+  }
 
   // Read out initialization message.
-  uint8_t discard[71];
-  boost::asio::read(ser_port, boost::asio::buffer(discard, 71));
+  uint8_t discard[70];
+  bool init_done = false;
+  while(!init_done){
+    int read = boost::asio::read(ser_port, boost::asio::buffer(discard, 5));
+    if(discard[read - 1] == '5'){
+      init_done = true;
+    }
+    if(options.verbose){
+      std::cout << std::string(reinterpret_cast<char *>(discard)); 
+    }
+  }
+  if(options.verbose){
+    std::cout << std::endl;
+    std::cout << "Flushed buffer." << std::endl;
+    std::cout << "Attempting to set baud rate on device." << std::endl;
+  }
 
   // Set baud rate
   if(!set_baud(ser_port, options.transfer)){
@@ -96,6 +125,9 @@ int main(int argc, char **argv){
     return 1;
   }
   ser_port.set_option(boost::asio::serial_port_base::baud_rate(options.transfer));
+  if(options.verbose){
+    std::cout << "Set and matched baud rate on device." << std::endl;
+  }
 
   // Set resolution
   // Set compression ratio
@@ -116,11 +148,14 @@ int main(int argc, char **argv){
 
     // Read in the JPEG.
     read_jpeg(ser_port, output_file);
+    if(options.verbose){
+      std::cout << "Capture complete." << std::endl;
+    }
   }
   else {
     std::cout << "Capture failed. Check connection and try again." << std::endl;
-  }
-
+  } 
+  
   // Close the output file and serial port.
   output_file.close();
   ser_port.close();
@@ -136,8 +171,8 @@ void get_options(struct Options& options, int argc, char **argv){
   options.transfer = 115200;
   options.baud = 38400;
   options.compress = 0x36;
+  options.verbose = false;
   std::string requested_resolution;
-
 
   while((argc > 1) && (argv[1][0] == '-')){
     switch(argv[1][1]){
@@ -177,6 +212,9 @@ void get_options(struct Options& options, int argc, char **argv){
       break;
     case 'c':
       //TODO Requires some more complex parsing.
+      break;
+    case 'v':
+      options.verbose = true;
       break;
     }
     // Move the pointer forward one element and decrement our argument count.
@@ -339,4 +377,13 @@ bool set_resolution(boost::asio::serial_port& ser_port, int x_res, int y_res){
 
 bool set_compression(boost::asio::serial_port& ser_port, int ratio){
   return false;
+}
+
+bool ends_with (std::string const &full_string, std::string const &ending)
+{
+    if (full_string.length() >= ending.length()) {
+        return (0 == full_string.compare (full_string.length() - ending.length(), ending.length(), ending));
+    } else {
+        return false;
+    }
 }

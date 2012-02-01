@@ -25,12 +25,16 @@ char field_separator = ",";
 CmdMessenger cmdMessenger = CmdMessenger(Serial, field_separator, command_separator);
 
 // Encoder data
-int left_clicks = 0;
-int right_clicks = 0;
+const int right_encoder_pin = 2;
+const int left_encoder_pin = 3;
+volatile int left_clicks = 0;
+volatile int right_clicks = 0;
 
 // Servo info
 const int right_servo_pin = 5;
 const int left_servo_pin = 10;
+int right_direction;
+int left_direction;
 
 // Arduino -> PC messages
 enum
@@ -81,8 +85,7 @@ void unknown_cmd(){
   cmdMessenger.sendCmd(kERR,"Unknown command");
 }
 
-void attach_callbacks(messengerCallbackFunction* callbacks)
-{
+void attach_callbacks(messengerCallbackFunction* callbacks){
   int i = 0;
   int offset = kSEND_CMDS_END;
   while(callbacks[i])
@@ -92,38 +95,53 @@ void attach_callbacks(messengerCallbackFunction* callbacks)
   }
 }
 
-void jerrys_base64_data()
-{
-  // Afer base64_decode(), we just parse the buffer and unpack it into your
-  // target / desination data type eg bitmask, float, double, whatever.
-  char buf[350] = { 0x00 };
-  boolean data_msg_printed = false;
+/* void jerrys_base64_data(){ */
+/*   // Afer base64_decode(), we just parse the buffer and unpack it into your */
+/*   // target / desination data type eg bitmask, float, double, whatever. */
+/*   char buf[350] = { 0x00 }; */
+/*   boolean data_msg_printed = false; */
 
-  // base64 decode
-  while ( cmdMessenger.available() )
-  {
-    if(!data_msg_printed)
-    {
-      cmdMessenger.sendCmd(kACK, "what you send me, decoded base64...");
-      data_msg_printed = true;
-    }
-    char buf[350] = { '\0' };
-    cmdMessenger.copyString(buf, 350);
-    if(buf[0])
-    {
-      char decode_buf[350] = { '\0' };
-      base64_decode(decode_buf, buf, 350);
-      cmdMessenger.sendCmd(kACK, decode_buf);
-    }
+/*   // base64 decode */
+/*   while ( cmdMessenger.available() ) */
+/*   { */
+/*     if(!data_msg_printed) */
+/*     { */
+/*       cmdMessenger.sendCmd(kACK, "what you send me, decoded base64..."); */
+/*       data_msg_printed = true; */
+/*     } */
+/*     char buf[350] = { '\0' }; */
+/*     cmdMessenger.copyString(buf, 350); */
+/*     if(buf[0]) */
+/*     { */
+/*       char decode_buf[350] = { '\0' }; */
+/*       base64_decode(decode_buf, buf, 350); */
+/*       cmdMessenger.sendCmd(kACK, decode_buf); */
+/*     } */
+/*   } */
+
+/*   // base64 encode */
+/*   if(!data_msg_printed) */
+/*   { */
+/*     cmdMessenger.sendCmd(kACK, "\"the bears are allright\" encoded in base64..."); */
+/*     char base64_msg[350] = { '\0' }; */
+/*     base64_encode(base64_msg, "the bears are allright", 22); */
+/*     cmdMessenger.sendCmd(kACK, base64_msg); */
+/*   } */
+/* } */
+
+void right_encoder_tick(){
+  if(right_speed > 50){
+    right_ticks++;
+  } else {
+    right_ticks--;
   }
+}
 
-  // base64 encode
-  if(!data_msg_printed)
-  {
-    cmdMessenger.sendCmd(kACK, "\"the bears are allright\" encoded in base64...");
-    char base64_msg[350] = { '\0' };
-    base64_encode(base64_msg, "the bears are allright", 22);
-    cmdMessenger.sendCmd(kACK, base64_msg);
+void left_encoder_tick(){
+  if(left_speed > 50){
+    left_ticks++;
+  } else {
+    left_ticks--;
   }
 }
 
@@ -137,6 +155,10 @@ void setup(){
 
   // Attach application callback methods
   attach_callbacks(messengerCallbacks);
+  
+  // Set up encoders
+  attachInterrupt(right_encoder_pin, right_encoder_tick, RISING);
+  attachInterrupt(left_encoder_pin, left_encoder_tick, RISING);
 
   arduino_ready();  
 }

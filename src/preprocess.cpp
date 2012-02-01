@@ -25,6 +25,6 @@ int main(int argc, char **argv){
   std::cout << "Read in image, resolution " << xres << "x"
             << yres << std::endl;
   image.type(GrayscaleType);
-  image.write("out.jpg");
+  image.write("out.bmp");
   return 0;
 }
