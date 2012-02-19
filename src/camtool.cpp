@@ -1,23 +1,23 @@
 /*
- camtool.cpp - Integrated camera tool that lets you take pictures with different
- resolutions, speeds, and compression ratios.
+  camtool.cpp - Integrated camera tool that lets you take pictures with different
+  resolutions, speeds, and compression ratios.
 
- Usage: camtool [-p<device>] [-f<file>] [-r<resolution>] [-b<rate>] [-t<rate>] 
-                [-c<ratio>] [-v]
+  Usage: camtool [-p<device>] [-f<file>] [-r<resolution>] [-b<rate>] [-t<rate>] 
+  [-c<ratio>] [-v]
  
- Options:
+  Options:
   -p<device> Device file. Defaults to /dev/ttyUSB0.
   -f<file>   Output filename. Defaults to out.jpg.
   -r<res>    Set the device resolution. Available resolutions:
-             160x120, 320x240, 640x480
+  160x120, 320x240, 640x480
   -b<rate>   Set the current device baud rate. Available rates:
-             9600, 19200, 38400, 57600, 115200. Default: 38400
+  9600, 19200, 38400, 57600, 115200. Default: 38400
   -t<rate>   Set the device data transfer baud rate. Available rates:
-             9600, 19200, 38400, 57600, 115200. Default: 115200
+  9600, 19200, 38400, 57600, 115200. Default: 115200
   -c<ratio>  Set the JPEG compression ratio. Available ratios:
-             00 to FF
+  00 to FF
   -v         Turn on verbose mode.
- */
+*/
 
 #include <fstream>
 #include <iostream>
@@ -207,7 +207,7 @@ void get_options(struct Options& options, int argc, char **argv){
       std::cout << "Set baud to " << options.baud << std::endl;
       break;
     case 't':
-      options.transfer = boost::lexical_cast<int>(argv[1]);
+      options.transfer = boost::lexical_cast<int>(argv[1] + 2);
       std::cout << "Set transfer to " << options.transfer << std::endl;
       break;
     case 'c':
@@ -266,7 +266,7 @@ uint16_t read_size(boost::asio::serial_port& ser_port){
 
 void read_jpeg(boost::asio::serial_port& ser_port, std::ofstream& output_file){
   uint8_t command[16] = { 0x56, 0x00, 0x32, 0x0C, 0x00, 0x0A, 0x00, 0x00,
-                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0A };
+                          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0A };
   uint16_t m = 0; // Start address
   uint16_t k = 32; // Chunk size
 
@@ -381,9 +381,10 @@ bool set_compression(boost::asio::serial_port& ser_port, int ratio){
 
 bool ends_with (std::string const &full_string, std::string const &ending)
 {
-    if (full_string.length() >= ending.length()) {
-        return (0 == full_string.compare (full_string.length() - ending.length(), ending.length(), ending));
-    } else {
-        return false;
-    }
+  if (full_string.length() >= ending.length()) {
+    return (0 == full_string.compare(full_string.length() - ending.length(), 
+                                     ending.length(), ending));
+  } else {
+    return false;
+  }
 }
