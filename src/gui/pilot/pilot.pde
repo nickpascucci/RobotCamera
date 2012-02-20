@@ -23,12 +23,20 @@ color buttonSelected = color(21, 101, 227);
 PFont libertine;
 int start_x;
 int start_y;
+
+// Overlay button information
 OverlayButton edgeDetectButton;
 OverlayButton doorDetectButton;
 OverlayButton rawViewButton;
 boolean mouseDown = false;
 int mouseDownX = 0;
 int mouseDownY = 0;
+
+// Speeding up rendering by scaling images nicely? Yes please.
+int imgScaleX = 0;
+int imgScaleY = 0;
+int imgOffsetX = 0;
+int imgOffsetY = 0;
 
 // Networking
 int DEFAULT_PORT = 9494;
@@ -38,7 +46,7 @@ OutputStream output;
 
 void setup(){
   // General window setup
-  size(1280, 720);
+  size(1280, 720, P2D);
   frame.setTitle("Pilot");
   background(bgColor);
 
@@ -91,9 +99,18 @@ void setup(){
 void draw(){
   if(socket != null){
     // Connected to robot.
+    long start_time = System.currentTimeMillis();
     PImage pimage = requestImage();
+    long got_image_in = System.currentTimeMillis() - start_time;
+    // println("Image retrieved in " + got_image_in + "ms");
     if(pimage != null){
-      image(pimage, 0, 0, width, height);
+      // println("Resolution of image: " + pimage.width + "x" + pimage.height);
+      if(imgScaleX == 0){
+        computeImageScaling(pimage.width, pimage.height);
+      }
+      image(pimage, imgOffsetX, imgOffsetY, imgScaleX, imgScaleY);
+      long rendered_in = System.currentTimeMillis() - start_time - got_image_in;
+      // println("Rendered in " + rendered_in + "ms");
     }
     // We need to check for the mouse being pressed in order to draw over
     // successive frames.
@@ -103,6 +120,24 @@ void draw(){
   } else {
     controlP5.draw();
   }
+}
+
+/*
+  Generate an optimal scaling factor by successive doubling.
+ */
+void computeImageScaling(int xSize, int ySize){
+  imgScaleX = xSize;
+  imgScaleY = ySize;
+
+  // While we're still in bounds, double the image size.
+  // This should only happen once, or maybe twice if the image is small.
+  while(2 * imgScaleX < width && 2 * imgScaleY < height){
+    imgScaleX *= 2;
+    imgScaleY *= 2;
+  }
+  // Calculate the new offsets so we center the image properly.
+  imgOffsetX = (width - imgScaleX) / 2;
+  imgOffsetY = (height - imgScaleY) / 2;
 }
 
 /*

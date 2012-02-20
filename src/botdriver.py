@@ -2,6 +2,7 @@
 # Robot driver program: receives commands from Pilot and executes them.
 
 import socket
+import time
 from modules import CameraModule
 from util import netutils
 
@@ -27,7 +28,6 @@ class BotDriver:
     def read_and_execute(self):
         """Read incoming commands from the network and execute them."""
         packet = self.conn.recv(4096)
-        print "Received", packet
         self.parse_and_execute(packet)
 
     def parse_and_execute(self, packet):
@@ -35,7 +35,6 @@ class BotDriver:
             self.clean_up()
             exit(0)
         elif packet == "IMAGE":
-            print "Sending image to remote host.",
             cam = self.modules["camera"]
 
             # Here, we capture an image from the webcam and write it to a file.
@@ -50,7 +49,6 @@ class BotDriver:
             cam.capture_image_to_file("tmp.jpg")
             image_file = open("tmp.jpg", "r")
             self.conn.sendall(image_file.read())
-            print "Done!"
 
     def clean_up(self):
         """Free up network connections in preparation for closing."""
