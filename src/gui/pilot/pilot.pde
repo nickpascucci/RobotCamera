@@ -44,7 +44,7 @@ OutputStream output;
 
 void setup(){
   // General window setup
-  size(1280, 720, P2D);
+  size(screenWidth, screenHeight, P2D);
   frame.setTitle("Pilot");
   background(bgColor);
 
