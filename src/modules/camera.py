@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 """BotDriver module designed to handle input from a webcam."""
 
 import cv

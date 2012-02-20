@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 """An image processing pipeline stage which performs edge detection."""
 
 import cv
