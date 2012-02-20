@@ -18,8 +18,6 @@ ControlP5 controlP5;
 Textfield addressField;
 Textarea statusArea;
 color bgColor = color(0, 0, 0);
-color buttonDeselected = color(200, 200, 200);
-color buttonSelected = color(21, 101, 227);
 PFont libertine;
 int start_x;
 int start_y;
@@ -91,9 +89,9 @@ void setup(){
   controlP5.setAutoDraw(false);
   drawConnectGui();
   
-  edgeDetectButton = new OverlayButton(140, buttonDeselected);
-  rawViewButton = new OverlayButton(230, buttonDeselected);
-  doorDetectButton = new OverlayButton(320, buttonDeselected);
+  edgeDetectButton = new OverlayButton(140);
+  rawViewButton = new OverlayButton(230);
+  doorDetectButton = new OverlayButton(320);
 }
 
 void draw(){
@@ -106,8 +104,10 @@ void draw(){
     if(pimage != null){
       // println("Resolution of image: " + pimage.width + "x" + pimage.height);
       if(imgScaleX == 0){
+        // We'll try to speed up the render with precomputed scaling/translation
         computeImageScaling(pimage.width, pimage.height);
       }
+      noSmooth(); // Turn off smoothing for faster render.
       image(pimage, imgOffsetX, imgOffsetY, imgScaleX, imgScaleY);
       long rendered_in = System.currentTimeMillis() - start_time - got_image_in;
       // println("Rendered in " + rendered_in + "ms");
@@ -144,34 +144,32 @@ void computeImageScaling(int xSize, int ySize){
   Respond to mouse input events.
  */
 void onMouseDragged(int button, int x, int y){
-  if(socket != null){
+  println("Mouse is being dragged.");
+  if(socket != null && mouseDown){
     // Connected to robot, so let's do some UI magic!
     // Check the location of the mouse and see if it's in any of our buttons.
-    // If it is, highlight the button
-    println("Checking for button hits...");
+    // If it is, highlight the button.
+    println("Mouse dragged, checking buttons.");
     if(edgeDetectButton.contains(x, y)){
-      edgeDetectButton.setColor(buttonSelected);
-      println("Selecting edge video.");
+      edgeDetectButton.setSelected(true);
     } else {
-      edgeDetectButton.setColor(buttonDeselected);
+      edgeDetectButton.setSelected(false);
     }
     if(doorDetectButton.contains(x, y)){
-      println("Selecting door video.");
-      doorDetectButton.setColor(buttonSelected);
+      doorDetectButton.setSelected(true);
     } else {
-      doorDetectButton.setColor(buttonDeselected);
+      doorDetectButton.setSelected(false);
     }
     if(rawViewButton.contains(x, y)){
-      println("Selecting raw video.");
-      rawViewButton.setColor(buttonSelected);
+      rawViewButton.setSelected(true);
     } else {
-      rawViewButton.setColor(buttonDeselected);
+      rawViewButton.setSelected(false);
     }
   }
 }
 
 void onMousePressed(int button, int x, int y){
-  if(socket != null){
+  if(socket != null && button == MouseEvent.BUTTON3){
     // Connected to robot, so let's do some UI magic!
     // Draw the overlay UI
     mouseDown = true;
@@ -181,10 +179,17 @@ void onMousePressed(int button, int x, int y){
 }
 
 void onMouseReleased(int button, int x, int y){
-  if(socket != null){
+  if(socket != null && button == MouseEvent.BUTTON3){
     // Check to see if the mouse is on a button, and if it is, trigger the
     // button's behavior
     mouseDown = false;
+    if(edgeDetectButton.isSelected()){
+      println("Edge detection mode selected!");
+    } else if(doorDetectButton.isSelected()){
+      println("Door detection mode selected!");
+    } else if(rawViewButton.isSelected()){
+      println("Raw video mode selected!");
+    }
   }
 }
 
@@ -315,28 +320,32 @@ void cleanUp(){
 class OverlayButton {
   private float start;
   private float stop;
-  private color outlineColor;
+  private color outlineColor = color(200, 200, 200);
+  private color selectedOutlineColor = color(21, 101, 227);
   private int diam1 = 100;
   private int diam2 = 200;
   private int currentX;
   private int currentY;
+  private boolean selected = false;
 
-  public OverlayButton(int rotation, color outlineColor){
+  public OverlayButton(int rotation){
     this.outlineColor = outlineColor;
     start = radians(0 + rotation);
-    while(start > (2 * PI)){
-      start -= 2 * PI;
-    }
     stop = radians(80 + rotation);
-    while(stop > (2 * PI)){
-      stop -= 2 * PI;
+    while(start > (PI + PI)){
+      start -= PI + PI;
+      stop -= PI + PI;
     }
   }
 
   public void drawAt(int centerX, int centerY){
     currentX = centerX;
     currentY = centerY;
-    stroke(outlineColor);
+    if(selected){
+      stroke(selectedOutlineColor);
+    } else {
+      stroke(outlineColor);
+    }
     ellipseMode(CENTER);
     noFill(); // Only draw stroke/outline, and
     smooth(); // antialias everything so it looks nice.
@@ -352,6 +361,14 @@ class OverlayButton {
     this.outlineColor = outlineColor;
   }
 
+  public void setSelected(boolean isSelected){
+    selected = isSelected;
+  }
+
+  public boolean isSelected(){
+    return selected;
+  }
+
   private int distance(int x, int y){
     int dx = currentX - x;
     int dy = currentY - y;
@@ -365,9 +382,9 @@ class OverlayButton {
   }
 
   private int quadrant(float angle){
-    if(angle >= 0 && angle < PI/2) return 1;
-    else if(angle >= PI/2 && angle < PI) return 2;
-    else if(angle >= PI && angle < 1.5*PI) return 3;
+    if(angle >= 0 && angle < HALF_PI) return 1;
+    else if(angle >= HALF_PI && angle < PI) return 2;
+    else if(angle >= PI && angle < PI + HALF_PI) return 3;
     else return 4;
   }
 
