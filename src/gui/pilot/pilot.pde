@@ -148,12 +148,10 @@ void computeImageScaling(int xSize, int ySize){
   Respond to mouse input events.
  */
 void onMouseDragged(int button, int x, int y){
-  println("Mouse is being dragged.");
   if(socket != null && mouseDown){
     // Connected to robot, so let's do some UI magic!
     // Check the location of the mouse and see if it's in any of our buttons.
     // If it is, highlight the button.
-    println("Mouse dragged, checking buttons.");
     if(edgeDetectButton.contains(x, y)){
       edgeDetectButton.setSelected(true);
     } else {
@@ -174,8 +172,8 @@ void onMouseDragged(int button, int x, int y){
 
 void onMousePressed(int button, int x, int y){
   if(socket != null && button == MouseEvent.BUTTON3){
-    // Connected to robot, so let's do some UI magic!
-    // Draw the overlay UI
+    // Since we keep the overlay stationary when moving the mouse, we need 
+    // to store the initial mouse press location somewhere we can get to it.
     mouseDown = true;
     mouseDownX = x;
     mouseDownY = y;
@@ -184,20 +182,30 @@ void onMousePressed(int button, int x, int y){
 
 void onMouseReleased(int button, int x, int y){
   if(socket != null && button == MouseEvent.BUTTON3){
-    // Check to see if the mouse is on a button, and if it is, trigger the
-    // button's behavior
+    // User has released the mouse, so check to see if the mouse is on a button
+    // and if it is, trigger the button's behavior.
     mouseDown = false;
-    if(edgeDetectButton.isSelected()){
-      println("Edge detection mode selected!");
-    } else if(doorDetectButton.isSelected()){
-      println("Door detection mode selected!");
-    } else if(rawViewButton.isSelected()){
-      println("Raw video mode selected!");
+    try{
+      if(edgeDetectButton.isSelected()){
+        println("Edge detection mode selected!");
+        output.write("EDGE;".getBytes());
+      } else if(doorDetectButton.isSelected()){
+        println("Door detection mode selected!");
+        output.write("DOOR;".getBytes());
+      } else if(rawViewButton.isSelected()){
+        println("Raw video mode selected!");
+        output.write("RAW;".getBytes());
+      }
+      output.flush();
+    } catch (IOException ioe){
+      println("IOException occurred when trying to set mode.");
+      // TODO look into printing an error message to GUI
     }
   }
 }
 
 void drawOverlayUi(int x, int y){
+  // Draw me some buttons!
   edgeDetectButton.drawAt(x, y);
   doorDetectButton.drawAt(x, y);
   rawViewButton.drawAt(x, y);
@@ -207,6 +215,7 @@ void drawOverlayUi(int x, int y){
   Respond to keyboard input events.
  */
 void keyTyped(){
+  // It's always nice to be able to exit cleanly.
   if(key == ESC){
     cleanUp();
     exit();
@@ -219,6 +228,7 @@ void keyTyped(){
 void drawConnectGui(){
   // Nice, beautiful title text!
   textFont(libertine);
+  noSmooth();
   text("Pilot", start_x, start_y - 25);
 
   // Some GUI elements... The spacing here is important.
@@ -250,6 +260,7 @@ void connectToRobot(){
   try {
     displayStatus("Contacting rover.");
     socket = new Socket(host, DEFAULT_PORT);
+    socket.setTcpNoDelay(true); // This is gross and irresponsible, but needed
     displayStatus("Connection established!");
     input = socket.getInputStream();
     output = socket.getOutputStream();
@@ -276,7 +287,8 @@ PImage requestImage(){
   // TODO Expand this to work with the real protocol.
   // Read the image from the network into a buffered image
   try{
-    output.write("IMAGE".getBytes());
+    output.write("IMAGE;".getBytes());
+    output.flush();
     // Allocate more than we need into a flexible buffer.
     ByteBuffer buffer = ByteBuffer.allocate(2000*1100);
     while(input.available() > 0){
@@ -311,7 +323,7 @@ PImage requestImage(){
 void cleanUp(){
   if(socket != null){
     try{
-      output.write("QUIT".getBytes());
+      output.write("QUIT;".getBytes());
       input.close();
       output.close();
       socket.close();

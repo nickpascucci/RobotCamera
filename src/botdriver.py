@@ -30,25 +30,36 @@ class BotDriver:
         packet = self.conn.recv(4096)
         self.parse_and_execute(packet)
 
-    def parse_and_execute(self, packet):
-        if packet == "QUIT":
-            self.clean_up()
-            exit(0)
-        elif packet == "IMAGE":
-            cam = self.modules["camera"]
+    def parse_and_execute(self, packet_data):
+        print "Received packet", packet_data
+        for packet in packet_data.split(";"):
+            if packet == "QUIT":
+                self.clean_up()
+                exit(0)
+            elif packet == "IMAGE":
+                cam = self.modules["camera"]
 
-            # Here, we capture an image from the webcam and write it to a file.
-            # Doing this much disk I/O slows downt this process significantly,
-            # so it would be nice to store the image in memory before we send
-            # it; unfortunately, the Python OpenCV bindings don't allow us to
-            # use cv::imencode because there's no Python equivalent to the C++
-            # vector<uchar> type. It might be worth writing our own wrapper
-            # function to speed this up. Another idea is to try to short-circuit
-            # the cv.SaveImage function to have it write to a StringIO buffer;
-            # but I have no idea how to do that.
-            cam.capture_image_to_file("tmp.jpg")
-            image_file = open("tmp.jpg", "r")
-            self.conn.sendall(image_file.read())
+                # Here, we capture an image from the webcam and write it to a file.
+                # Doing this much disk I/O slows downt this process significantly,
+                # so it would be nice to store the image in memory before we send
+                # it; unfortunately, the Python OpenCV bindings don't allow us to
+                # use cv::imencode because there's no Python equivalent to the C++
+                # vector<uchar> type. It might be worth writing our own wrapper
+                # function to speed this up. Another idea is to try to short-circuit
+                # the cv.SaveImage function to have it write to a StringIO buffer;
+                # but I have no idea how to do that.
+                cam.capture_image_to_file("tmp.jpg")
+                image_file = open("tmp.jpg", "r")
+                self.conn.sendall(image_file.read())
+            elif packet == "EDGE":
+                cam = self.modules["camera"]
+                cam.set_mode(CameraModule.EDGE_DETECT_MODE)
+            elif packet == "RAW":
+                cam = self.modules["camera"]
+                cam.set_mode(CameraModule.RAW_VIDEO_MODE)
+            elif packet == "DOOR":
+                cam = self.modules["camera"]
+                cam.set_mode(CameraModule.DOOR_DETECT_MODE)
 
     def clean_up(self):
         """Free up network connections in preparation for closing."""
