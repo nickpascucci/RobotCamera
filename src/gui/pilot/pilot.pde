@@ -88,10 +88,13 @@ void setup(){
   controlP5 = new ControlP5(this);
   controlP5.setAutoDraw(false);
   drawConnectGui();
-  
-  edgeDetectButton = new OverlayButton(140);
-  rawViewButton = new OverlayButton(230);
-  doorDetectButton = new OverlayButton(320);
+
+  edgeDetectButton = new OverlayButton(-60, 0, loadImage("left_normal.png"), 
+                                       loadImage("left_selected.png"));
+  rawViewButton = new OverlayButton(0, 60, loadImage("top_normal.png"), 
+                                       loadImage("top_selected.png"));
+  doorDetectButton = new OverlayButton(60, 0, loadImage("right_normal.png"), 
+                                       loadImage("right_selected.png"));
 }
 
 void draw(){
@@ -108,6 +111,7 @@ void draw(){
         computeImageScaling(pimage.width, pimage.height);
       }
       noSmooth(); // Turn off smoothing for faster render.
+      imageMode(CORNER);
       image(pimage, imgOffsetX, imgOffsetY, imgScaleX, imgScaleY);
       long rendered_in = System.currentTimeMillis() - start_time - got_image_in;
       // println("Rendered in " + rendered_in + "ms");
@@ -318,47 +322,31 @@ void cleanUp(){
 }
 
 class OverlayButton {
-  private float start;
-  private float stop;
-  private color outlineColor = color(200, 200, 200);
-  private color selectedOutlineColor = color(21, 101, 227);
-  private int diam1 = 100;
-  private int diam2 = 200;
-  private int currentX;
-  private int currentY;
+  private int offsetX;
+  private int offsetY;
+  private int centerX;
+  private int centerY;
+  private PImage normalImage;
+  private PImage selectedImage;
   private boolean selected = false;
 
-  public OverlayButton(int rotation){
-    this.outlineColor = outlineColor;
-    start = radians(0 + rotation);
-    stop = radians(80 + rotation);
-    while(start > (PI + PI)){
-      start -= PI + PI;
-      stop -= PI + PI;
-    }
+  public OverlayButton(int offsetX, int offsetY, 
+                       PImage normalImage, PImage selectedImage){
+    this.offsetX = offsetX;
+    this.offsetY = offsetY;
+    this.selectedImage = selectedImage;
+    this.normalImage = normalImage;
   }
 
   public void drawAt(int centerX, int centerY){
-    currentX = centerX;
-    currentY = centerY;
+    this.centerX = centerX;
+    this.centerY = centerY;
+    imageMode(CENTER);
     if(selected){
-      stroke(selectedOutlineColor);
+      image(selectedImage, centerX + offsetX, centerY - offsetY);
     } else {
-      stroke(outlineColor);
+      image(normalImage, centerX + offsetX, centerY - offsetY);
     }
-    ellipseMode(CENTER);
-    noFill(); // Only draw stroke/outline, and
-    smooth(); // antialias everything so it looks nice.
-    arc(centerX, centerY, diam1, diam1, start, stop);
-    arc(centerX, centerY, diam2, diam2, start, stop);
-    line(centerX + (diam1/2)*cos(start), centerY + (diam1/2)*sin(start),
-         centerX + (diam2/2)*cos(start), centerY + (diam2/2)*sin(start));
-    line(centerX + (diam1/2)*cos(stop), centerY + (diam1/2)*sin(stop),
-         centerX + (diam2/2)*cos(stop), centerY + (diam2/2)*sin(stop));
-  }
-
-  public void setColor(color outlineColor){
-    this.outlineColor = outlineColor;
   }
 
   public void setSelected(boolean isSelected){
@@ -369,18 +357,6 @@ class OverlayButton {
     return selected;
   }
 
-  private int distance(int x, int y){
-    int dx = currentX - x;
-    int dy = currentY - y;
-    return (int) sqrt((dx * dx) + (dy * dy));
-  }
-
-  private float angle(int x, int y){
-    float dx = (float) currentX - x;
-    float dy = (float) currentY - y;
-    return PI + atan(dy/dx);
-  }
-
   private int quadrant(float angle){
     if(angle >= 0 && angle < HALF_PI) return 1;
     else if(angle >= HALF_PI && angle < PI) return 2;
@@ -389,18 +365,17 @@ class OverlayButton {
   }
 
   public boolean contains(int x, int y){
-    int dx = currentX - x;
-    int dy = currentY - y;
+    int dx = centerX - x;
+    int dy = centerY - y;
     int adx = abs(dx);
     int ady = abs(dy);
-    int quad = quadrant(start);
-    if(quad == 4 && dx < 0 && adx > ady){
+    if(offsetX > 0 && dx < 0 && adx > ady){
       return true;
-    } else if(quad == 1 && dy < 0 && ady > adx){
+    } else if(offsetY < 0 && dy < 0 && ady > adx){
       return true;
-    } else if(quad == 2 && dx > 0 && adx > ady){
+    } else if(offsetX < 0 && dx > 0 && adx > ady){
       return true;
-    } else if(quad == 3 && dy > 0 && ady > adx){
+    } else if(offsetY > 0 && dy > 0 && ady > adx){
       return true;
     }
     return false;
