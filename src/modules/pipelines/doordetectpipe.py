@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 """An image processing pipeline stage which detects doors in the scene."""
 
 __author__ = "Nick Pascucci (npascut1@gmail.com)"
