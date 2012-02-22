@@ -1,18 +1,15 @@
-/* -*- mode: c; fill-column: 100; -*- */
+/* -*- mode: c++; fill-column: 100; -*- */
 /*
    Motion control Arduino sketch for the robot's servomotors. 
 
    Responds to commands over serial in order to move the robot. The following
    commands will be supported:
 
-   set_speed;[R/L]<value> Move a servo at the given speed. Negative values means move backwards.
-   read;                  Read the current position of the motor encoders.
+   Set speed: 4,<right_value>,<left_value>; 
+   Move a servo at the given speed. Takes values from 0-255 in base 64 encoding.
 
-   Notes:
-
-   - You'll need to modify Streaming.h to get it to compile with the new Arduino
-     environment. Since WProgram.h is no more, change the #include line to use
-     Arduino.h instead.
+   Read: 5;  
+   Read the current position of the motor encoders.
  */
 
 #include <Base64.h>
@@ -20,25 +17,29 @@
 #include <Servo.h>
 #include <Streaming.h>
 
-char command_separator = ";";
-char field_separator = ",";
+// Communications
+char command_separator = ';';
+char field_separator = ',';
 CmdMessenger cmdMessenger = CmdMessenger(Serial, field_separator, command_separator);
 
-// Encoder data
-const int right_encoder_pin = 2;
-const int left_encoder_pin = 3;
-volatile int left_clicks = 0;
-volatile int right_clicks = 0;
+// Servo/Wheel info
+const float radius = 3.0;
+const float circ = 2 * PI * radius;
 
-// Servo info
-const int right_servo_pin = 5;
-const int left_servo_pin = 10;
-int right_direction;
-int left_direction;
+struct EncodedServo {
+  Servo servo;
+  int encoder_interrupt;
+  int zero_point;
+  int speed;
+  int ticks;
+  long int last_tick;
+};
+
+EncodedServo left_servo;
+EncodedServo right_servo;
 
 // Arduino -> PC messages
-enum
-{
+enum {
   kCOMM_ERROR = 000,
   kACK = 001,
   kARDUINO_READY = 002,
@@ -52,29 +53,48 @@ messengerCallbackFunction messengerCallbacks[] =
 {
   set_speed, // 004 - Matches index of kSEND_CMDS_END above.
   read_encoders, // 005
+  read_speed, // 006
 };
 
 void set_speed(){
-  // Read the speed value
+  // We'll loop through the arguments
+  int servo_num = 0;
+  while(cmdMessenger.available()){
+    char buf[10] = { 0x00 };
+    cmdMessenger.copyString(buf, 10);
+    cmdMessenger.sendCmd(kACK, buf);
+    char decoded_buf[10] = { 0x00 };
+    base64_decode(decoded_buf, buf, 10);
+
+    // checking to see which side we should set.
+    if(servo_num == 0){ 
+      right_servo.speed = (int) decoded_buf[0];
+    } 
+    else if(servo_num == 1){
+      left_servo.speed = (int) decoded_buf[0];
+    }
+    servo_num++;
+  }
+  cmdMessenger.sendCmd(kACK, "Speed set");
 }
 
 void read_encoders(){
-  // Get encoder data, package it as a pair of strings
-  String right_encoder_data = String(right_ticks, DEC);
-  String left_encoder_data = String(left_ticks, DEC);
+  // Get encoder data and send it to the computer
+  Serial.print("1");
+  Serial.print(field_separator);
+  Serial.print(right_servo.ticks, DEC);
+  Serial.print(field_separator);
+  Serial.print(left_servo.ticks, DEC);
+  Serial.println(command_separator);
+}
 
-  // Build a new string with that data
-  String encoder_data_string = String("R" + right_encoder_data + "L" + left_encoder_data);
-
-  // Convert the new string to a char array
-  char encoder_data[] = new char[encoder_data_string.length() + 1];
-  encoder_data_string.toCharArray(encoder_data, encoder_data_string.length() + 1);
-
-  // Send it
-  cmdMessenger.sendCmd(encoder_data);
-
-  // Free up memory
-  delete encoder_data;
+void read_speed(){
+  Serial.print("1");
+  Serial.print(field_separator);
+  Serial.print(right_servo.speed, DEC);
+  Serial.print(field_separator);
+  Serial.print(left_servo.speed, DEC);
+  Serial.println(command_separator);
 }
 
 void arduino_ready(){
@@ -93,6 +113,60 @@ void attach_callbacks(messengerCallbackFunction* callbacks){
     cmdMessenger.attach(offset+i, callbacks[i]);
     i++;
   }
+}
+
+void right_encoder_tick(){
+    right_servo.ticks++;
+    toggle(13);
+}
+
+void left_encoder_tick(){
+    left_servo.ticks++;
+    toggle(13);
+}
+
+void setup(){
+  pinMode(13, OUTPUT);
+  digitalWrite(13, LOW);
+
+  Serial.begin(115200);
+  // Make output more readable.
+  cmdMessenger.print_LF_CR(); 
+  
+  // Attach default/generic callback methods.
+  cmdMessenger.attach(kARDUINO_READY, arduino_ready);
+  cmdMessenger.attach(unknown_cmd);
+
+  // Attach application callback methods.
+  attach_callbacks(messengerCallbacks);
+
+  // Set up encoders.
+  attachInterrupt(0, right_encoder_tick, HIGH);
+  attachInterrupt(1, left_encoder_tick, HIGH);
+
+  // Set up servos.
+  left_servo.servo = Servo();
+  left_servo.servo.attach(5);
+  left_servo.encoder_interrupt = 0;
+
+  right_servo.servo = Servo();
+  right_servo.servo.attach(10);
+  right_servo.encoder_interrupt = 1;
+
+  arduino_ready();  
+}
+
+void loop(){
+  // Process incoming serial data, if any
+  cmdMessenger.feedinSerialData();
+
+  // TODO Handle servo speed setting here
+  left_servo.servo.write(left_servo.speed);
+  right_servo.servo.write(right_servo.speed);
+}
+
+void toggle(int pin){
+  digitalWrite(pin, !digitalRead(pin));
 }
 
 /* void jerrys_base64_data(){ */
@@ -129,41 +203,3 @@ void attach_callbacks(messengerCallbackFunction* callbacks){
 /*   } */
 /* } */
 
-void right_encoder_tick(){
-  if(right_speed > 50){
-    right_ticks++;
-  } else {
-    right_ticks--;
-  }
-}
-
-void left_encoder_tick(){
-  if(left_speed > 50){
-    left_ticks++;
-  } else {
-    left_ticks--;
-  }
-}
-
-void setup(){
-  Serial.begin(115200);
-  cmdMessenger.print_LF_CR(); // Make output more readable
-  
-  // Attach default / generic callback methods
-  cmdMessenger.attach(kARDUINO_READY, arduino_ready);
-  cmdMessenger.attach(unknown_cmd);
-
-  // Attach application callback methods
-  attach_callbacks(messengerCallbacks);
-  
-  // Set up encoders
-  attachInterrupt(right_encoder_pin, right_encoder_tick, RISING);
-  attachInterrupt(left_encoder_pin, left_encoder_tick, RISING);
-
-  arduino_ready();  
-}
-
-void loop(){
-  // Process incoming serial data, if any
-  cmdMessenger.feedinSerialData();
-}
