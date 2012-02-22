@@ -37,14 +37,23 @@ int imgOffsetX = 0;
 int imgOffsetY = 0;
 
 // Networking
-int DEFAULT_PORT = 9494;
-Socket socket;
-InputStream input;
-OutputStream output;
+int DEFAULT_VIDEO_PORT = 9494;
+int DEFAULT_CONTROL_PORT = 9495;
+Socket videoSocket;
+InputStream videoInput;
+OutputStream videoOutput;
+Socket controlSocket;
+InputStream controlInput;
+OutputStream controlOutput;
+boolean image_request_pending = false;
 
 void setup(){
-  // General window setup
-  size(screenWidth, screenHeight, P2D);
+  // General window setup.
+  if(screenWidth < 1920){ // Detect large screens, and avoid overfilling
+    size(screenWidth, screenHeight, P2D);
+  } else {
+    size(1200, 800, P2D);
+  }
   frame.setTitle("Pilot");
   background(bgColor);
 
@@ -98,7 +107,7 @@ void setup(){
 }
 
 void draw(){
-  if(socket != null){
+  if(videoSocket != null){
     // Connected to robot.
     long start_time = System.currentTimeMillis();
     PImage pimage = requestImage();
@@ -148,7 +157,7 @@ void computeImageScaling(int xSize, int ySize){
   Respond to mouse input events.
  */
 void onMouseDragged(int button, int x, int y){
-  if(socket != null && mouseDown){
+  if(videoSocket != null && mouseDown){
     // Connected to robot, so let's do some UI magic!
     // Check the location of the mouse and see if it's in any of our buttons.
     // If it is, highlight the button.
@@ -171,7 +180,7 @@ void onMouseDragged(int button, int x, int y){
 }
 
 void onMousePressed(int button, int x, int y){
-  if(socket != null && button == MouseEvent.BUTTON3){
+  if(videoSocket != null && button == MouseEvent.BUTTON3){
     // Since we keep the overlay stationary when moving the mouse, we need 
     // to store the initial mouse press location somewhere we can get to it.
     mouseDown = true;
@@ -181,22 +190,22 @@ void onMousePressed(int button, int x, int y){
 }
 
 void onMouseReleased(int button, int x, int y){
-  if(socket != null && button == MouseEvent.BUTTON3){
+  if(videoSocket != null && button == MouseEvent.BUTTON3){
     // User has released the mouse, so check to see if the mouse is on a button
     // and if it is, trigger the button's behavior.
     mouseDown = false;
     try{
       if(edgeDetectButton.isSelected()){
         println("Edge detection mode selected!");
-        output.write("EDGE;".getBytes());
+        controlOutput.write("EDGE;".getBytes());
       } else if(doorDetectButton.isSelected()){
         println("Door detection mode selected!");
-        output.write("DOOR;".getBytes());
+        controlOutput.write("DOOR;".getBytes());
       } else if(rawViewButton.isSelected()){
         println("Raw video mode selected!");
-        output.write("RAW;".getBytes());
+        controlOutput.write("RAW;".getBytes());
       }
-      output.flush();
+      controlOutput.flush();
     } catch (IOException ioe){
       println("IOException occurred when trying to set mode.");
       // TODO look into printing an error message to GUI
@@ -259,11 +268,13 @@ void connectToRobot(){
   String host = addressField.getText();
   try {
     displayStatus("Contacting rover.");
-    socket = new Socket(host, DEFAULT_PORT);
-    socket.setTcpNoDelay(true); // This is gross and irresponsible, but needed
+    videoSocket = new Socket(host, DEFAULT_VIDEO_PORT);
+    controlSocket = new Socket(host, DEFAULT_CONTROL_PORT);
     displayStatus("Connection established!");
-    input = socket.getInputStream();
-    output = socket.getOutputStream();
+    videoInput = videoSocket.getInputStream();
+    videoOutput = videoSocket.getOutputStream();
+    controlInput = controlSocket.getInputStream();
+    controlOutput = controlSocket.getOutputStream();
   }
   catch(Exception e){
     displayStatus("Failed to connect to " + host + "!");
@@ -287,28 +298,37 @@ PImage requestImage(){
   // TODO Expand this to work with the real protocol.
   // Read the image from the network into a buffered image
   try{
-    output.write("IMAGE;".getBytes());
-    output.flush();
-    // Allocate more than we need into a flexible buffer.
-    ByteBuffer buffer = ByteBuffer.allocate(2000*1100);
-    while(input.available() > 0){
-      buffer.put((byte) input.read());
+    if(!image_request_pending){
+      videoOutput.write("IMAGE;".getBytes());
+      videoOutput.flush();
+      image_request_pending = true;
     }
 
-    InputStream imageBufferStream = new ByteArrayInputStream(buffer.array());
-    BufferedImage image = ImageIO.read(imageBufferStream);
+    if(videoInput.available() > 0){
+      // Allocate more than we need into a flexible buffer.
+      ByteBuffer buffer = ByteBuffer.allocate(2000*1100);
+      while(videoInput.available() > 0){
+        buffer.put((byte) videoInput.read());
+      }
 
-    // Since it's possible that we didn't get an image back, we'll check for
-    // nulls.
-    if(image != null){
-      // Create a Processing-compatible image buffer for the read image...
-      PImage pimage = new PImage(image.getWidth(), image.getHeight(), 
-                                 PConstants.ARGB);
-      // Read the buffered image's pixel data into the Processing-compatible buffer
-      image.getRGB(0, 0, pimage.width, pimage.height, 
-                   pimage.pixels, 0, pimage.width);
-      pimage.updatePixels();
-      return pimage;
+      InputStream imageBufferStream = new ByteArrayInputStream(buffer.array());
+      BufferedImage image = ImageIO.read(imageBufferStream);
+
+      // Since it's possible that we didn't get an image back, we'll check for
+      // nulls.
+      if(image != null){
+        // Create a Processing-compatible image buffer for the read image...
+        PImage pimage = new PImage(image.getWidth(), image.getHeight(), 
+                                   PConstants.ARGB);
+        // Read the buffered image's pixel data into the Processing-compatible buffer
+        image.getRGB(0, 0, pimage.width, pimage.height, 
+                     pimage.pixels, 0, pimage.width);
+        pimage.updatePixels();
+        image_request_pending = false;
+        return pimage;
+      } else {
+        return null;
+      }
     } else {
       return null;
     }
@@ -321,12 +341,12 @@ PImage requestImage(){
   Free up our network resources so we can close cleanly.
  */
 void cleanUp(){
-  if(socket != null){
+  if(videoSocket != null){
     try{
-      output.write("QUIT;".getBytes());
-      input.close();
-      output.close();
-      socket.close();
+      videoOutput.write("QUIT;".getBytes());
+      videoInput.close();
+      videoOutput.close();
+      videoSocket.close();
     } catch (IOException ioe){
       // Do nothing, since it doesn't matter; we're closing shop.
     }
