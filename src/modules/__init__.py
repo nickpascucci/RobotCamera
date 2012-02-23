@@ -2,3 +2,4 @@
 # them from the top-level package, add an import statement here.
 
 from camera import CameraModule
+from motion import ArduinoMotionModule
