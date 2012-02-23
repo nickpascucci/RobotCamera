@@ -27,6 +27,12 @@ class CameraModule:
         image = cv.QueryFrame(self.capture)
         image = self.pass_to_pipeline(image)
         return image        
+
+    def capture_jpeg(self):
+        """Capture an image from the webcam and return it encoded as a JPEG."""
+        image = self.capture_image()
+        jpeg = cv.EncodeImage('.jpg', image)
+        return jpeg.tostring()
         
     def pass_to_pipeline(self, image):
         """Perform preprocessing on the image by passing it to a pipeline."""
@@ -47,3 +53,6 @@ class CameraModule:
             last_pipe = DoorDetectPipe(None)
             self.first_pipe = EdgeDetectPipe(last_pipe)
 
+    def close(self):
+        """Close the module and perform any clean up necessary."""
+        pass
