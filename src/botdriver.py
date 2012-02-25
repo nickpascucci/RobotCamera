@@ -80,22 +80,9 @@ class BotDriver:
                 exit(0)
             elif packet == "IMAGE":
                 cam = self.modules["camera"]
-
-                # Here, we capture an image from the webcam and write it to a
-                # file.  Doing this much disk I/O slows downt this process
-                # significantly, so it would be nice to store the image in
-                # memory before we send it; unfortunately, the Python OpenCV
-                # bindings don't allow us to use cv::imencode because there's no
-                # Python equivalent to the C++ vector<uchar> type. It might be
-                # worth writing our own wrapper function to speed this
-                # up. Another idea is to try to short-circuit the cv.SaveImage
-                # function to have it write to a StringIO buffer; but I have no
-                # idea how to do that.
-                # cam.capture_image_to_file("tmp.jpg")
-                # image_file = open("tmp.jpg", "r")
-                # self.video_conn.sendall(image_file.read())
                 img = cam.capture_jpeg()
                 self.video_conn.sendall(img)
+
             # Swapping video modes is pretty simple from this end...
             elif packet == "EDGE":
                 cam = self.modules["camera"]
