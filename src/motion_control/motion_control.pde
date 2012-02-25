@@ -27,7 +27,7 @@ const float radius = 3.0;           // Wheel radius
 const float circ = 2 * PI * radius; // Wheel circumference
 const float degrees_per_tick = 20;  // Encoder resolution
 
-// Target move distance. When this is nonzero loop() will move forward this distance.
+// Target move distance. When this is nonzero loop() will move forward this number of ticks.
 int target_dist = 0;
 
 struct EncodedServo {
@@ -95,6 +95,7 @@ void read_encoders(){
 }
 
 void read_speed(){
+  // Print current speed information to the serial port
   Serial.print("1");
   Serial.print(field_separator);
   Serial.print(right_servo.speed, DEC);
@@ -104,23 +105,33 @@ void read_speed(){
 }
 
 void move_dist(){
-  // TODO implement move_dist
   // Parse distance from packet, and set it as global target
-  // Add tracking code to loop()
   if(cmdMessenger.available()){
     char buf[10] = { 0x00 };
     cmdMessenger.copyString(buf, 10);
-    cmdMessenger.sendCmd(kACK, buf);
     char decoded_buf[10] = { 0x00 };
+
+    // Targets will be base 64 encoded bytes, so we'll need to decode them.
     base64_decode(decoded_buf, buf, 10);
     target_dist = decoded_buf[0];
+
+    // Send a confirmation back to the desktop.
     Serial.print("1,");
     Serial.print("Target distance set at ");
     Serial.print(target_dist, DEC);
-    Serial.print(";");
+    Serial.print("cm;");
+
+    // Re-encode the distance in terms of ticks; these are a lot easier to track.
+    target_dist = dist_to_ticks(target_dist);
   }
   cmdMessenger.sendCmd(kACK, "Moving forward.");
+}
 
+int dist_to_ticks(int dist){
+  // The number of ticks for a given distance is given by the number of revolutions divided by the
+  // number of ticks per revolution.
+  int ticks = (dist/circ) / (360/degrees_per_tick);
+  return ticks;
 }
 
 void arduino_ready(){
@@ -199,7 +210,7 @@ void zero_servos(){
 
 /* 
    Calibration Interrupt Service Routine, used to find the zero point on the servos.
- */
+*/
 void calibration_isr(){
   last_calibration_tick = millis();
   speed_calibration--;
@@ -243,51 +254,21 @@ void loop(){
   cmdMessenger.feedinSerialData();
 
   // TODO Handle servo speed setting here
-  if(target_dist > 0){
+  if(target_dist > left_servo.ticks){
     left_servo.servo.write(left_servo.speed);
-    right_servo.servo.write(right_servo.speed);
   }
   else {
     left_servo.servo.write(left_servo.zero_point);
+  }
+  if(target_dist > right_servo.ticks){
+    right_servo.servo.write(right_servo.speed);
+  }
+  else {
     right_servo.servo.write(right_servo.zero_point);
   }
+
 }
 
 void toggle(int pin){
   digitalWrite(pin, !digitalRead(pin));
 }
-
-/* void jerrys_base64_data(){ */
-/*   // Afer base64_decode(), we just parse the buffer and unpack it into your */
-/*   // target / desination data type eg bitmask, float, double, whatever. */
-/*   char buf[350] = { 0x00 }; */
-/*   boolean data_msg_printed = false; */
-
-/*   // base64 decode */
-/*   while ( cmdMessenger.available() ) */
-/*   { */
-/*     if(!data_msg_printed) */
-/*     { */
-/*       cmdMessenger.sendCmd(kACK, "what you send me, decoded base64..."); */
-/*       data_msg_printed = true; */
-/*     } */
-/*     char buf[350] = { '\0' }; */
-/*     cmdMessenger.copyString(buf, 350); */
-/*     if(buf[0]) */
-/*     { */
-/*       char decode_buf[350] = { '\0' }; */
-/*       base64_decode(decode_buf, buf, 350); */
-/*       cmdMessenger.sendCmd(kACK, decode_buf); */
-/*     } */
-/*   } */
-
-/*   // base64 encode */
-/*   if(!data_msg_printed) */
-/*   { */
-/*     cmdMessenger.sendCmd(kACK, "\"the bears are allright\" encoded in base64..."); */
-/*     char base64_msg[350] = { '\0' }; */
-/*     base64_encode(base64_msg, "the bears are allright", 22); */
-/*     cmdMessenger.sendCmd(kACK, base64_msg); */
-/*   } */
-/* } */
-
