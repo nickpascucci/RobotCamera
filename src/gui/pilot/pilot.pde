@@ -228,6 +228,24 @@ void keyTyped(){
   if(key == ESC){
     cleanUp();
     exit();
+  } 
+  else if(key == 's' || key == 'S'){
+    // Move backwards
+    println("Moving backward 5cm.");
+    try{
+      controlOutput.write("MOVE -5;".getBytes());
+    } catch (IOException ioe){
+      println("Failed to send packet!");
+    }
+  }
+  else if(key == 'w' || key == 'W'){
+    // Move forwards.
+    println("Moving forward 5cm.");
+    try{
+      controlOutput.write("MOVE 5;".getBytes());
+    } catch (IOException ioe){
+      println("Failed to send packet!");
+    }
   }
 }
 
