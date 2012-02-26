@@ -2,8 +2,8 @@
 /*
   Motion control Arduino sketch for the robot's servomotors. 
 
-  Responds to commands over serial in order to move the robot. The following
-  commands will be supported:
+  Responds to commands over serial in order to move the robot. The system uses CmdMessenger to
+  handle serial communications.
 
   Set speed: 4,<right_value>,<left_value>; 
   Move a servo at the given speed. Takes values from 0-255 in base 64 encoding.
@@ -17,12 +17,12 @@
 #include <Servo.h>
 #include <Streaming.h>
 
-// Communications
+// Communications variables:
 char command_separator = ';';
 char field_separator = ',';
 CmdMessenger cmdMessenger = CmdMessenger(Serial, field_separator, command_separator);
 
-// Servo/Wheel info
+// Servo/Wheel info:
 const float radius = 3.0;           // Wheel radius
 const float circ = 2 * PI * radius; // Wheel circumference
 const float degrees_per_tick = 20;  // Encoder resolution
@@ -60,7 +60,10 @@ messengerCallbackFunction messengerCallbacks[] =
     read_speed,       // 006
     move_dist,        // 007
     zero_servos,      // 008
+    rotate_angle,     // 009
   };
+
+// ## Speed Control
 
 void set_speed(){
   // We'll loop through the arguments
@@ -104,6 +107,8 @@ void read_speed(){
   Serial.println(command_separator);
 }
 
+// ## Movement
+
 void move_dist(){
   // Parse distance from packet, and set it as global target
   if(cmdMessenger.available()){
@@ -127,29 +132,16 @@ void move_dist(){
   cmdMessenger.sendCmd(kACK, "Moving forward.");
 }
 
+void rotate_angle(){
+  // TODO Implement rotate_angle
+  return;
+}
+
 int dist_to_ticks(int dist){
   // The number of ticks for a given distance is given by the number of revolutions divided by the
   // number of ticks per revolution.
   int ticks = (dist/circ) / (360/degrees_per_tick);
   return ticks;
-}
-
-void arduino_ready(){
-  cmdMessenger.sendCmd(kACK,"Ready");
-}
-
-void unknown_cmd(){
-  cmdMessenger.sendCmd(kERR,"Unknown command");
-}
-
-void attach_callbacks(messengerCallbackFunction* callbacks){
-  int i = 0;
-  int offset = kSEND_CMDS_END;
-  while(callbacks[i])
-    {
-      cmdMessenger.attach(offset+i, callbacks[i]);
-      i++;
-    }
 }
 
 void right_encoder_tick(){
@@ -161,6 +153,8 @@ void left_encoder_tick(){
   left_servo.ticks++;
   toggle(13);
 }
+
+// ## Calibration
 
 int speed_calibration = 0;
 long int last_calibration_tick;
@@ -216,6 +210,26 @@ void calibration_isr(){
   speed_calibration--;
 }
 
+// ## Communications
+
+void arduino_ready(){
+  cmdMessenger.sendCmd(kACK,"Ready");
+}
+
+void unknown_cmd(){
+  cmdMessenger.sendCmd(kERR,"Unknown command");
+}
+
+void attach_callbacks(messengerCallbackFunction* callbacks){
+  int i = 0;
+  int offset = kSEND_CMDS_END;
+  while(callbacks[i])
+    {
+      cmdMessenger.attach(offset+i, callbacks[i]);
+      i++;
+    }
+}
+
 void setup(){
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
@@ -253,7 +267,8 @@ void loop(){
   // Process incoming serial data, if any
   cmdMessenger.feedinSerialData();
 
-  // TODO Handle servo speed setting here
+  // TODO Handle servo speed adjustments here. If the motors get too far out of sync, we'll have to
+  // synchronize them.
   if(target_dist > left_servo.ticks){
     left_servo.servo.write(left_servo.speed);
   }
@@ -266,7 +281,6 @@ void loop(){
   else {
     right_servo.servo.write(right_servo.zero_point);
   }
-
 }
 
 void toggle(int pin){
