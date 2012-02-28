@@ -5,13 +5,15 @@ from pipelines import NopPipe, EdgeDetectPipe, DoorDetectPipe
 
 __author__ = "Nick Pascucci (npascut1@gmail.com)"
 
+class CameraError(Exception):
+    pass
+
 class CameraModule:
     RAW_VIDEO_MODE = 0
     EDGE_DETECT_MODE = 1
     DOOR_DETECT_MODE = 2
-
     
-    def __init__(self, camera=0, x_res=640, y_res=480):
+    def __init__(self, camera=-1, x_res=640, y_res=480):
         self.capture = cv.CaptureFromCAM(camera)
         cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, x_res)
         cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, y_res)
@@ -25,13 +27,15 @@ class CameraModule:
     def capture_image(self):
         """Capture and process an image from the webcam."""
         image = cv.QueryFrame(self.capture)
+        if not image:
+            raise CameraError("Failed to capture image!")
         image = self.pass_to_pipeline(image)
         return image        
 
     def capture_jpeg(self):
         """Capture an image from the webcam and return it encoded as a JPEG."""
         image = self.capture_image()
-        jpeg = cv.EncodeImage('.jpg', image)
+        jpeg = cv.EncodeImage('.jpeg', image)
         return jpeg.tostring()
         
     def pass_to_pipeline(self, image):

@@ -1,22 +1,16 @@
 #! /usr/bin/env python
 # Robot driver program: receives commands from Pilot and executes them.
 
-import select
-import socket
-import time
-from modules import CameraModule
+from modules import CameraModule, CameraError
 from modules import ArduinoMotionModule
-from util import netutils
-
-DEFAULT_VIDEO_PORT = 9494
-DEFAULT_CONTROL_PORT = 9495
+from modules import NetworkCommunicationsModule, BluetoothCommunicationsModule
 
 class BotDriver:
     def __init__(self):
         # TODO Break all modules into their own threads and implement queues
         self.camera = CameraModule()
         self.motion = ArduinoMotionModule()
-        self.comms = NetworkCommunicationsModule()
+        self.comms = BluetoothCommunicationsModule()
         # TODO Perhaps we should break this out into an 'install()' method
         # or perform a list comprehension (use inheritence to define modules)
         self.installed_modules = [self.camera, self.motion, self.comms]
@@ -27,11 +21,12 @@ class BotDriver:
 
     def read_and_execute(self):
         """Read incoming commands and execute them."""
-        for packet in self.comms.get_packet():
+        for packet in self.comms.get_packets():
             self.parse_and_execute(packet)
 
     def parse_and_execute(self, packet_data):
-        print "Received packet", packet_data
+        #print "Received packet", packet_data
+
         # TCP is a streaming protocol, which means that we can't rely on our
         # packets coming nice and orderly and one at a time. We have to
         # implement some structure on top of the stream to do that; the simplest
@@ -43,8 +38,12 @@ class BotDriver:
                 self.clean_up()
                 exit(0)
             elif packet == "IMAGE":
-                img = self.camera.capture_jpeg()
-                self.video_conn.sendall(img)
+                try:
+                    img = self.camera.capture_jpeg()
+                except CameraError:
+                    print "An error occurred while trying to capture an image."
+                    continue # Not much we can do about a camera error.
+                self.comms.send_media(img)
 
             # Swapping video modes is pretty simple from this end...
             elif packet == "EDGE":
@@ -64,14 +63,8 @@ class BotDriver:
                 self.motion.rotate(rotation)
 
     def clean_up(self):
-        """Free up network connections in preparation for closing."""
-        if self.video_conn:
-            self.video_conn.close()
-        if self.control_conn:
-            self.control_conn.close()
-        # Don't forget the modules; they may have resources that need to be
-        # freed before we can exit cleanly.
-        for module in self.modules.itervalues():
+        """Free up module resources in preparation for closing."""
+        for module in self.installed_modules:
             module.close()
 
 def main():
@@ -87,7 +80,6 @@ def main():
         # exception and re-raising it allows us to do that and exit cleanly.
         bd.clean_up()
         exit(0)
-
 
 if __name__ == "__main__":
     main()

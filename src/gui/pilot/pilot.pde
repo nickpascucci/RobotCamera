@@ -3,6 +3,7 @@
 */
 
 import controlP5.*;
+import bluetoothDesktop.*;
 import java.awt.image.BufferedImage;
 import java.awt.Image;
 import java.awt.event.MouseEvent;
@@ -17,8 +18,13 @@ import javax.imageio.ImageIO;
 ControlP5 controlP5;
 Textfield addressField;
 Textarea statusArea;
+TextButton btButton;
+TextButton netButton;
 color bgColor = color(0, 0, 0);
+color selectedTextColor = color(0, 143, 191); //color(0, 115, 153);
+color unselectedTextColor = color(0xFB, 0xFB, 0xFB);
 PFont libertine;
+PFont dejavusans;
 int start_x;
 int start_y;
 
@@ -37,6 +43,8 @@ int imgOffsetX = 0;
 int imgOffsetY = 0;
 
 // Networking
+// TODO Pull all of the networking crap into its own set of classes so we can
+// abstract network/bluetooth
 int DEFAULT_VIDEO_PORT = 9494;
 int DEFAULT_CONTROL_PORT = 9495;
 Socket videoSocket;
@@ -47,18 +55,20 @@ InputStream controlInput;
 OutputStream controlOutput;
 boolean image_request_pending = false;
 
+
 void setup(){
   // General window setup.
   if(screenWidth < 1920){ // Detect large screens, and avoid overfilling
     size(screenWidth, screenHeight, P2D);
   } else {
-    size(1200, 800, P2D);
+    size(1280, 960, P2D);
   }
   frame.setTitle("Pilot");
   background(bgColor);
 
   // Typography
   libertine = loadFont("libertine-100.vlw");
+  dejavusans = loadFont("dejavusans-24.vlw");
 
   // Set up listeners
   addMouseMotionListener(new MouseMotionListener(){
@@ -101,7 +111,7 @@ void setup(){
   edgeDetectButton = new OverlayButton(-60, 0, loadImage("left_normal.png"), 
                                        loadImage("left_selected.png"));
   rawViewButton = new OverlayButton(0, 60, loadImage("top_normal.png"), 
-                                       loadImage("top_selected.png"));
+                                    loadImage("top_selected.png"));
   doorDetectButton = new OverlayButton(60, 0, loadImage("right_normal.png"), 
                                        loadImage("right_selected.png"));
 }
@@ -131,31 +141,49 @@ void draw(){
       drawOverlayUi(mouseDownX, mouseDownY);
     }
   } else {
-    controlP5.draw();
+    background(0);
+    drawTitle();
+    btButton.draw();
+    netButton.draw();
+    if(netButton.isSelected()){
+      controlP5.draw();
+    }
   }
 }
 
 /*
   Generate an optimal scaling factor by successive doubling.
- */
+*/
 void computeImageScaling(int xSize, int ySize){
   imgScaleX = xSize;
   imgScaleY = ySize;
 
-  // While we're still in bounds, double the image size.
+  // While we're still in bounds, increase the image size.
   // This should only happen once, or maybe twice if the image is small.
-  while(2 * imgScaleX < width && 2 * imgScaleY < height){
-    imgScaleX *= 2;
-    imgScaleY *= 2;
+  while(imgScaleX + xSize <= width && imgScaleY + ySize <= height){
+    imgScaleX += xSize;
+    imgScaleY += ySize;
   }
   // Calculate the new offsets so we center the image properly.
   imgOffsetX = (width - imgScaleX) / 2;
   imgOffsetY = (height - imgScaleY) / 2;
 }
 
+void mouseClicked(){
+  if(videoSocket == null) {
+    if(btButton.contains(mouseX, mouseY)){
+      btButton.setSelected(true);
+      netButton.setSelected(false);
+    } else if (netButton.contains(mouseX, mouseY)){
+      netButton.setSelected(true);
+      btButton.setSelected(false);
+    }
+  }
+}
+
 /*
   Respond to mouse input events.
- */
+*/
 void onMouseDragged(int button, int x, int y){
   if(videoSocket != null && mouseDown){
     // Connected to robot, so let's do some UI magic!
@@ -222,7 +250,7 @@ void drawOverlayUi(int x, int y){
 
 /*
   Respond to keyboard input events.
- */
+*/
 void keyTyped(){
   // It's always nice to be able to exit cleanly.
   if(key == ESC){
@@ -251,25 +279,42 @@ void keyTyped(){
 
 /*
   Draw the connection UI using ControlP5.
- */
+*/
 void drawConnectGui(){
-  // Nice, beautiful title text!
-  textFont(libertine);
-  noSmooth();
-  text("Pilot", start_x, start_y - 25);
+  drawTitle();
 
-  // Some GUI elements... The spacing here is important.
+  // Text buttons for connection type
+  btButton = new TextButton("Bluetooth", start_x - 2, start_y - 35, 117, 25);
+  btButton.setFont(dejavusans);
+  btButton.setColors(unselectedTextColor, selectedTextColor);
+  btButton.setSelected(true);
+
+  netButton = new TextButton("Network", start_x + 128, start_y - 35, 25);
+  netButton.setFont(dejavusans);
+  netButton.setColors(unselectedTextColor, selectedTextColor);
+  
+  // Some GUI elements. The spacing here is important.
   addressField = controlP5.addTextfield("address", start_x, start_y, 140, 20);
-  controlP5.addButton("connect", 1, start_x + 155, start_y, 70, 20);
+  controlP5.addButton("connect", 1, start_x + 159, start_y, 70, 20);
 
   // Text area for status messages. Should be the same width as above controls.
   statusArea = controlP5.addTextarea("status", "", start_x, start_y + 50, 
                                      215, 300);
 }
 
+void drawTitle(){
+ // Nice, beautiful title text!
+  textMode(SCREEN);
+  noSmooth();
+  textFont(libertine);
+  noStroke();
+  fill(255);
+  text("Pilot", start_x, start_y - 50);
+}
+
 /*
   Handle UI events generated by ControlP5.
- */
+*/
 void controlEvent(ControlEvent ev){
   Controller controller = ev.controller();
   // We only have one button, so...
@@ -280,7 +325,7 @@ void controlEvent(ControlEvent ev){
 
 /*
   Connect to the robot over the network.
- */
+*/
 void connectToRobot(){
   //  print("Trying to connect to robot...");
   String host = addressField.getText();
@@ -311,7 +356,7 @@ void displayStatus(String status){
 
 /*
   Request an image from the robot so we can display it.
- */
+*/
 PImage requestImage(){
   // TODO Expand this to work with the real protocol.
   // Read the image from the network into a buffered image
@@ -357,7 +402,7 @@ PImage requestImage(){
 
 /*
   Free up our network resources so we can close cleanly.
- */
+*/
 void cleanUp(){
   if(videoSocket != null){
     try{
@@ -429,5 +474,81 @@ class OverlayButton {
       return true;
     }
     return false;
+  }
+}
+
+class TextButton {
+  color textColor = color(255, 255, 255);
+  color alternateColor = color(255, 255, 255);
+  color backgroundColor = color(0, 0, 0);
+  String buttonText;
+  PFont font;
+  float textX, textY, textW, textH;
+  boolean selected = false;
+
+  public TextButton(String text, float x, float y, float h){
+    this.textX = x;
+    this.textY = y;
+    this.textW = textWidth(text);
+    this.textH = h;
+    buttonText = text;
+  }
+
+  public TextButton(String text, float x, float y, float w, float h){
+    this.textX = x;
+    this.textY = y;
+    this.textW = w;
+    this.textH = h;
+    buttonText = text;
+  }
+
+  public void setColors(color main, color alternate, color background){
+    textColor = main;
+    alternateColor = alternate;
+    backgroundColor = background;
+  }
+
+  public void setColors(color main, color alternate){
+    textColor = main;
+    alternateColor = alternate;
+  }
+
+  public void setFont(PFont font){
+    this.font = font;
+  }
+
+  public void setText(String text){
+    buttonText = text;
+  }
+
+  public boolean contains(int x, int y){
+    if(mouseX >= textX && mouseX <= textX+textW){
+      if(mouseY >= textY && mouseY <= textY+textH){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public boolean isSelected(){
+    return selected;
+  }
+
+  public void setSelected(boolean isSelected){
+    selected = isSelected;
+  }
+
+  public void draw(){
+    noStroke();
+    fill(backgroundColor);
+    rect(textX, textY, textW, textH);
+    textFont(font);
+    if(this.isSelected()){
+      fill(alternateColor);
+    }
+    else {
+      fill(textColor);
+    }
+    text(buttonText, textX, textY, textW, textH);
   }
 }

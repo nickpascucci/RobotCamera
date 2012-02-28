@@ -19,9 +19,9 @@ class ArduinoMotionModule():
     ROTATE = '9'
 
     def __init__(self, port="/dev/ttyUSB0", baud=115200):
-        # self.port = port
-        # self.conn = serial.Serial(port, baud, timeout=1)
-        pass
+        return # Remove when actual communications are desired.
+        self.port = port
+        self.conn = serial.Serial(port, baud, timeout=1)
 
     def move(self, distance):
         """Move forward the specified distance in centimeters."""
