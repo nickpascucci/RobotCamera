@@ -284,12 +284,12 @@ void drawConnectGui(){
   drawTitle();
 
   // Text buttons for connection type
-  btButton = new TextButton("Bluetooth", start_x - 2, start_y - 35, 117, 25);
+  btButton = new TextButton(this, "Bluetooth", start_x - 2, start_y - 35, 117, 25);
   btButton.setFont(dejavusans);
   btButton.setColors(unselectedTextColor, selectedTextColor);
   btButton.setSelected(true);
 
-  netButton = new TextButton("Network", start_x + 128, start_y - 35, 25);
+  netButton = new TextButton(this, "Network", start_x + 128, start_y - 35, 25);
   netButton.setFont(dejavusans);
   netButton.setColors(unselectedTextColor, selectedTextColor);
   
@@ -474,81 +474,5 @@ class OverlayButton {
       return true;
     }
     return false;
-  }
-}
-
-class TextButton {
-  color textColor = color(255, 255, 255);
-  color alternateColor = color(255, 255, 255);
-  color backgroundColor = color(0, 0, 0);
-  String buttonText;
-  PFont font;
-  float textX, textY, textW, textH;
-  boolean selected = false;
-
-  public TextButton(String text, float x, float y, float h){
-    this.textX = x;
-    this.textY = y;
-    this.textW = textWidth(text);
-    this.textH = h;
-    buttonText = text;
-  }
-
-  public TextButton(String text, float x, float y, float w, float h){
-    this.textX = x;
-    this.textY = y;
-    this.textW = w;
-    this.textH = h;
-    buttonText = text;
-  }
-
-  public void setColors(color main, color alternate, color background){
-    textColor = main;
-    alternateColor = alternate;
-    backgroundColor = background;
-  }
-
-  public void setColors(color main, color alternate){
-    textColor = main;
-    alternateColor = alternate;
-  }
-
-  public void setFont(PFont font){
-    this.font = font;
-  }
-
-  public void setText(String text){
-    buttonText = text;
-  }
-
-  public boolean contains(int x, int y){
-    if(mouseX >= textX && mouseX <= textX+textW){
-      if(mouseY >= textY && mouseY <= textY+textH){
-        return true;
-      }
-    }
-    return false;
-  }
-
-  public boolean isSelected(){
-    return selected;
-  }
-
-  public void setSelected(boolean isSelected){
-    selected = isSelected;
-  }
-
-  public void draw(){
-    noStroke();
-    fill(backgroundColor);
-    rect(textX, textY, textW, textH);
-    textFont(font);
-    if(this.isSelected()){
-      fill(alternateColor);
-    }
-    else {
-      fill(textColor);
-    }
-    text(buttonText, textX, textY, textW, textH);
   }
 }
