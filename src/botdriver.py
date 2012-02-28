@@ -1,16 +1,23 @@
 #! /usr/bin/env python
 # Robot driver program: receives commands from Pilot and executes them.
 
+import sys
 from modules import CameraModule, CameraError
 from modules import ArduinoMotionModule
 from modules import NetworkCommunicationsModule, BluetoothCommunicationsModule
 
 class BotDriver:
-    def __init__(self):
+    def __init__(self, use_bluetooth = True):
         # TODO Break all modules into their own threads and implement queues
+        if use_bluetooth:
+            print "Bringing up Bluetooth interface..."
+            self.comms = BluetoothCommunicationsModule()
+        else:
+            print "Bringing up network interface..."
+            self.comms = NetworkCommunicationsModule()
         self.camera = CameraModule()
         self.motion = ArduinoMotionModule()
-        self.comms = BluetoothCommunicationsModule()
+
         # TODO Perhaps we should break this out into an 'install()' method
         # or perform a list comprehension (use inheritence to define modules)
         self.installed_modules = [self.camera, self.motion, self.comms]
@@ -68,7 +75,10 @@ class BotDriver:
             module.close()
 
 def main():
-    bd = BotDriver()
+    if len(sys.argv) > 1 and sys.argv[1] == "-b":
+        bd = BotDriver()
+    else:
+        bd = BotDriver(use_bluetooth = False)
     try:
         print "Bot driver up and waiting for connections."
         bd.wait_for_connections()
