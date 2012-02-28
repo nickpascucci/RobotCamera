@@ -2,14 +2,14 @@ import processing.core.PApplet;
 import processing.core.PFont;
 
 class TextButton {
-  PApplet parent;
-  int textColor;
-  int alternateColor;
-  int backgroundColor;
-  String buttonText;
-  PFont font;
-  float textX, textY, textW, textH;
-  boolean selected = false;
+  private PApplet parent;
+  private int textColor;
+  private int alternateColor;
+  private int backgroundColor;
+  private String buttonText;
+  private PFont font;
+  private float textX, textY, textW, textH;
+  private boolean selected = false;
 
   public TextButton(PApplet parent, String text, float x, float y, float h){
     this.parent = parent;

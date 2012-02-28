@@ -108,11 +108,11 @@ void setup(){
   controlP5.setAutoDraw(false);
   drawConnectGui();
 
-  edgeDetectButton = new OverlayButton(-60, 0, loadImage("left_normal.png"), 
+  edgeDetectButton = new OverlayButton(this, -60, 0, loadImage("left_normal.png"), 
                                        loadImage("left_selected.png"));
-  rawViewButton = new OverlayButton(0, 60, loadImage("top_normal.png"), 
+  rawViewButton = new OverlayButton(this, 0, 60, loadImage("top_normal.png"), 
                                     loadImage("top_selected.png"));
-  doorDetectButton = new OverlayButton(60, 0, loadImage("right_normal.png"), 
+  doorDetectButton = new OverlayButton(this, 60, 0, loadImage("right_normal.png"), 
                                        loadImage("right_selected.png"));
 }
 
@@ -413,66 +413,5 @@ void cleanUp(){
     } catch (IOException ioe){
       // Do nothing, since it doesn't matter; we're closing shop.
     }
-  }
-}
-
-class OverlayButton {
-  private int offsetX;
-  private int offsetY;
-  private int centerX;
-  private int centerY;
-  private PImage normalImage;
-  private PImage selectedImage;
-  private boolean selected = false;
-
-  public OverlayButton(int offsetX, int offsetY, 
-                       PImage normalImage, PImage selectedImage){
-    this.offsetX = offsetX;
-    this.offsetY = offsetY;
-    this.selectedImage = selectedImage;
-    this.normalImage = normalImage;
-  }
-
-  public void drawAt(int centerX, int centerY){
-    this.centerX = centerX;
-    this.centerY = centerY;
-    imageMode(CENTER);
-    if(selected){
-      image(selectedImage, centerX + offsetX, centerY - offsetY);
-    } else {
-      image(normalImage, centerX + offsetX, centerY - offsetY);
-    }
-  }
-
-  public void setSelected(boolean isSelected){
-    selected = isSelected;
-  }
-
-  public boolean isSelected(){
-    return selected;
-  }
-
-  private int quadrant(float angle){
-    if(angle >= 0 && angle < HALF_PI) return 1;
-    else if(angle >= HALF_PI && angle < PI) return 2;
-    else if(angle >= PI && angle < PI + HALF_PI) return 3;
-    else return 4;
-  }
-
-  public boolean contains(int x, int y){
-    int dx = centerX - x;
-    int dy = centerY - y;
-    int adx = abs(dx);
-    int ady = abs(dy);
-    if(offsetX > 0 && dx < 0 && adx > ady){
-      return true;
-    } else if(offsetY < 0 && dy < 0 && ady > adx){
-      return true;
-    } else if(offsetX < 0 && dx > 0 && adx > ady){
-      return true;
-    } else if(offsetY > 0 && dy > 0 && ady > adx){
-      return true;
-    }
-    return false;
   }
 }
