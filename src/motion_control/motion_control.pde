@@ -34,6 +34,7 @@ struct EncodedServo {
   Servo servo;
   int encoder_interrupt;
   int zero_point;
+  int mid_point;
   int speed;
   int ticks;
   long int last_tick;
@@ -164,6 +165,7 @@ void zero_servos(){
   speed_calibration = 180;
   noInterrupts();
   left_servo.servo.write(speed_calibration);
+
   // Attach a calibration interrupt which decreases speed every time the encoder ticks
   detachInterrupt(left_servo.encoder_interrupt);
   attachInterrupt(left_servo.encoder_interrupt, calibration_isr, RISING);
@@ -171,6 +173,9 @@ void zero_servos(){
   last_calibration_tick = millis();
   cmdMessenger.sendCmd(kACK, "Starting left servo calibration");
   while(millis() - last_calibration_tick < 5000){
+    Serial.print("Current speed: ");
+    Serial.print(1.0 / (millis() - last_calibration_tick));
+    Serial.println("rps");
     left_servo.servo.write(speed_calibration);
   };
 
@@ -259,6 +264,7 @@ void setup(){
   right_servo.encoder_interrupt = 1;
 
   zero_servos();
+  blink(3);
 
   arduino_ready();  
 }
@@ -285,4 +291,14 @@ void loop(){
 
 void toggle(int pin){
   digitalWrite(pin, !digitalRead(pin));
+}
+
+void blink(int times){
+  digitalWrite(13, LOW);
+  for(int i = 0; i < times; i++){
+    delay(250);
+    toggle(13);
+    delay(250);
+    toggle(13);
+  }
 }
