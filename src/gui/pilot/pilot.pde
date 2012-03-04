@@ -43,22 +43,15 @@ int imgOffsetX = 0;
 int imgOffsetY = 0;
 
 // Networking
-// TODO Pull all of the networking crap into its own set of classes so we can
-// abstract network/bluetooth
 int DEFAULT_VIDEO_PORT = 9494;
 int DEFAULT_CONTROL_PORT = 9495;
-Socket videoSocket;
-InputStream videoInput;
-OutputStream videoOutput;
-Socket controlSocket;
-InputStream controlInput;
-OutputStream controlOutput;
+SocketAdapter videoChannel;
+SocketAdapter controlChannel;
 boolean image_request_pending = false;
 
-
-void setup(){
+void setup() {
   // General window setup.
-  if(screenWidth < 1920){ // Detect large screens, and avoid overfilling
+  if(screenWidth < 1920) { // Detect large screens, and avoid overfilling
     size(screenWidth, screenHeight, P2D);
   } else {
     size(1280, 960, P2D);
@@ -66,48 +59,45 @@ void setup(){
   frame.setTitle("Pilot");
   background(bgColor);
 
-  // Typography
+  // Typography! It's nice to have good fonts.
   libertine = loadFont("libertine-100.vlw");
   dejavusans = loadFont("dejavusans-24.vlw");
 
-  // Set up listeners
-  addMouseMotionListener(new MouseMotionListener(){
-      public void mouseDragged(MouseEvent e){
+  // Set up listeners: one for motion, so we can detect drag events for
+  // selecting overlay buttons; and one for press/release events to bring up the
+  // overlay when the user presses the right mouse button.
+  addMouseMotionListener(new MouseMotionListener() {
+      public void mouseMoved(MouseEvent e) { }
+
+      public void mouseDragged(MouseEvent e) {
         onMouseDragged(e.getButton(), e.getX(), e.getY());
       } 
-
-      public void mouseMoved(MouseEvent e){ 
-        // Do nothing 
-      }
     });
 
-  addMouseListener(new MouseListener(){
-      public void mouseClicked(MouseEvent e){
-        // Do nothing
-      }
+  addMouseListener(new MouseListener() {
+      public void mouseClicked(MouseEvent e) { }
+      public void mouseEntered(MouseEvent e) { }
+      public void mouseExited(MouseEvent e) { }
 
-      public void mouseEntered(MouseEvent e){
-        // Do nothing
-      }
-      public void mouseExited(MouseEvent e){
-        // Do nothing
-      }
-      public void mousePressed(MouseEvent e){
+      public void mousePressed(MouseEvent e) {
         onMousePressed(e.getButton(), e.getX(), e.getY());
       }
-      public void mouseReleased(MouseEvent e){
+      public void mouseReleased(MouseEvent e) {
         onMouseReleased(e.getButton(), e.getX(), e.getY());
       }
     });
 
-  // Initial GUI elements
-  start_x= (width - 220)/2;
+  // Initial GUI elements: we want consistent, parametric location; so we
+  // pre-calculate the starting positions.
+  start_x = (width - 220)/2;
   start_y = (height/2)+25;
 
   controlP5 = new ControlP5(this);
+  // We'll draw the GUI manually; otherwise, this will draw constantly.
   controlP5.setAutoDraw(false);
   drawConnectGui();
 
+  // Overlay buttons, for when we're connected to the robot.
   edgeDetectButton = new OverlayButton(this, -60, 0, loadImage("left_normal.png"), 
                                        loadImage("left_selected.png"));
   rawViewButton = new OverlayButton(this, 0, 60, loadImage("top_normal.png"), 
@@ -116,51 +106,55 @@ void setup(){
                                        loadImage("right_selected.png"));
 }
 
-void draw(){
-  if(videoSocket != null){
-    // Connected to robot.
-    long start_time = System.currentTimeMillis();
+void draw() {
+  if(videoChannel != null) {
+    // Connected to robot! Let's start getting some imagery.
     PImage pimage = requestImage();
-    long got_image_in = System.currentTimeMillis() - start_time;
-    // println("Image retrieved in " + got_image_in + "ms");
-    if(pimage != null){
-      // println("Resolution of image: " + pimage.width + "x" + pimage.height);
-      if(imgScaleX == 0){
+
+    if(pimage != null) {
+      if(imgScaleX == 0) {
         // We'll try to speed up the render with precomputed scaling/translation
         computeImageScaling(pimage.width, pimage.height);
       }
       noSmooth(); // Turn off smoothing for faster render.
       imageMode(CORNER);
       image(pimage, imgOffsetX, imgOffsetY, imgScaleX, imgScaleY);
-      long rendered_in = System.currentTimeMillis() - start_time - got_image_in;
-      // println("Rendered in " + rendered_in + "ms");
     }
+
     // We need to check for the mouse being pressed in order to draw over
     // successive frames.
-    if(mouseDown){
+    if(mouseDown) {
       drawOverlayUi(mouseDownX, mouseDownY);
     }
   } else {
+    // If we're not connected, we should draw a GUI to allow the user to do so.
+    // background() will cover the entire frame in a solid color; black should
+    // do nicely. Then we need to draw our title text and our two buttons, and
+    // then check if we need to draw additional ControlP5 elements.
     background(0);
     drawTitle();
     btButton.draw();
     netButton.draw();
-    if(netButton.isSelected()){
+
+    if(netButton.isSelected()) {
       controlP5.draw();
     }
   }
 }
 
 /*
-  Generate an optimal scaling factor by successive doubling.
+  Generate an integer scaling factor for images. Using an integer scaling
+  factor allows the system to very efficiently scale images by writing one
+  pixel's value to n pixels, where n is the square of the scaling factor. This
+  is much faster than trying to compute fractions of pixels and blend them.
 */
-void computeImageScaling(int xSize, int ySize){
+void computeImageScaling(int xSize, int ySize) {
   imgScaleX = xSize;
   imgScaleY = ySize;
 
   // While we're still in bounds, increase the image size.
   // This should only happen once, or maybe twice if the image is small.
-  while(imgScaleX + xSize <= width && imgScaleY + ySize <= height){
+  while(imgScaleX + xSize <= width && imgScaleY + ySize <= height) {
     imgScaleX += xSize;
     imgScaleY += ySize;
   }
@@ -169,12 +163,16 @@ void computeImageScaling(int xSize, int ySize){
   imgOffsetY = (height - imgScaleY) / 2;
 }
 
-void mouseClicked(){
-  if(videoSocket == null) {
-    if(btButton.contains(mouseX, mouseY)){
+void mouseClicked() {
+  // This event is only interesting if we're not connected to the robot; for
+  // using the overlay buttons we need more fine grained control. However, for
+  // general text buttons, this event is very useful; we'll check to see if the
+  // mouse is in any of them and select them if so.
+  if(videoChannel == null) {
+    if(btButton.contains(mouseX, mouseY)) {
       btButton.setSelected(true);
       netButton.setSelected(false);
-    } else if (netButton.contains(mouseX, mouseY)){
+    } else if (netButton.contains(mouseX, mouseY)) {
       netButton.setSelected(true);
       btButton.setSelected(false);
     }
@@ -184,22 +182,24 @@ void mouseClicked(){
 /*
   Respond to mouse input events.
 */
-void onMouseDragged(int button, int x, int y){
-  if(videoSocket != null && mouseDown){
+void onMouseDragged(int button, int x, int y) {
+  if(videoChannel != null && mouseDown) {
     // Connected to robot, so let's do some UI magic!
     // Check the location of the mouse and see if it's in any of our buttons.
     // If it is, highlight the button.
-    if(edgeDetectButton.contains(x, y)){
+    if(edgeDetectButton.contains(x, y)) {
       edgeDetectButton.setSelected(true);
     } else {
       edgeDetectButton.setSelected(false);
     }
-    if(doorDetectButton.contains(x, y)){
+
+    if(doorDetectButton.contains(x, y)) {
       doorDetectButton.setSelected(true);
     } else {
       doorDetectButton.setSelected(false);
     }
-    if(rawViewButton.contains(x, y)){
+
+    if(rawViewButton.contains(x, y)) {
       rawViewButton.setSelected(true);
     } else {
       rawViewButton.setSelected(false);
@@ -207,8 +207,8 @@ void onMouseDragged(int button, int x, int y){
   }
 }
 
-void onMousePressed(int button, int x, int y){
-  if(videoSocket != null && button == MouseEvent.BUTTON3){
+void onMousePressed(int button, int x, int y) {
+  if(videoChannel != null && button == MouseEvent.BUTTON3) {
     // Since we keep the overlay stationary when moving the mouse, we need 
     // to store the initial mouse press location somewhere we can get to it.
     mouseDown = true;
@@ -217,31 +217,29 @@ void onMousePressed(int button, int x, int y){
   }
 }
 
-void onMouseReleased(int button, int x, int y){
-  if(videoSocket != null && button == MouseEvent.BUTTON3){
+void onMouseReleased(int button, int x, int y) {
+  if(videoChannel != null && button == MouseEvent.BUTTON3) {
     // User has released the mouse, so check to see if the mouse is on a button
     // and if it is, trigger the button's behavior.
     mouseDown = false;
-    try{
-      if(edgeDetectButton.isSelected()){
-        println("Edge detection mode selected!");
-        controlOutput.write("EDGE;".getBytes());
-      } else if(doorDetectButton.isSelected()){
-        println("Door detection mode selected!");
-        controlOutput.write("DOOR;".getBytes());
-      } else if(rawViewButton.isSelected()){
-        println("Raw video mode selected!");
-        controlOutput.write("RAW;".getBytes());
-      }
-      controlOutput.flush();
-    } catch (IOException ioe){
-      println("IOException occurred when trying to set mode.");
-      // TODO look into printing an error message to GUI
+    if(edgeDetectButton.isSelected()) {
+      println("Edge detection mode selected!");
+      controlChannel.write("EDGE;".getBytes());
+    } else if(doorDetectButton.isSelected()) {
+      println("Door detection mode selected!");
+      controlChannel.write("DOOR;".getBytes());
+    } else if(rawViewButton.isSelected()) {
+      println("Raw video mode selected!");
+      controlChannel.write("RAW;".getBytes());
     }
+    controlChannel.flush();
   }
 }
 
-void drawOverlayUi(int x, int y){
+/*
+  When the user drags the mouse, draw an overlay button ring around it.
+ */
+void drawOverlayUi(int x, int y) {
   // Draw me some buttons!
   edgeDetectButton.drawAt(x, y);
   doorDetectButton.drawAt(x, y);
@@ -251,40 +249,31 @@ void drawOverlayUi(int x, int y){
 /*
   Respond to keyboard input events.
 */
-void keyTyped(){
+void keyTyped() {
   // It's always nice to be able to exit cleanly.
-  if(key == ESC){
+  if(key == ESC) {
     cleanUp();
     exit();
-  } 
-  else if(key == 's' || key == 'S'){
+  } else if(key == 's' || key == 'S') {
     // Move backwards
     println("Moving backward 5cm.");
-    try{
-      controlOutput.write("MOVE -5;".getBytes());
-    } catch (IOException ioe){
-      println("Failed to send packet!");
-    }
-  }
-  else if(key == 'w' || key == 'W'){
+    controlChannel.write("MOVE -5;".getBytes());
+  } else if(key == 'w' || key == 'W') {
     // Move forwards.
     println("Moving forward 5cm.");
-    try{
-      controlOutput.write("MOVE 5;".getBytes());
-    } catch (IOException ioe){
-      println("Failed to send packet!");
-    }
+    controlChannel.write("MOVE 5;".getBytes());
   }
 }
 
 /*
-  Draw the connection UI using ControlP5.
+  Draw the connection UI.
 */
-void drawConnectGui(){
+void drawConnectGui() {
   drawTitle();
 
   // Text buttons for connection type
-  btButton = new TextButton(this, "Bluetooth", start_x - 2, start_y - 35, 117, 25);
+  btButton = new TextButton(this, "Bluetooth", 
+                            start_x - 2, start_y - 35, 117, 25);
   btButton.setFont(dejavusans);
   btButton.setColors(unselectedTextColor, selectedTextColor);
   btButton.setSelected(true);
@@ -302,8 +291,11 @@ void drawConnectGui(){
                                      215, 300);
 }
 
-void drawTitle(){
- // Nice, beautiful title text!
+/*
+  Draw the title text.
+ */
+void drawTitle() {
+  // Nice, beautiful title text!
   textMode(SCREEN);
   noSmooth();
   textFont(libertine);
@@ -315,10 +307,11 @@ void drawTitle(){
 /*
   Handle UI events generated by ControlP5.
 */
-void controlEvent(ControlEvent ev){
+void controlEvent(ControlEvent ev) {
   Controller controller = ev.controller();
+
   // We only have one button, so...
-  if(controller.name().equals("connect")){
+  if(controller.name().equals("connect")) {
     connectToRobot();
   }
 }
@@ -326,28 +319,31 @@ void controlEvent(ControlEvent ev){
 /*
   Connect to the robot over the network.
 */
-void connectToRobot(){
+void connectToRobot() {
   //  print("Trying to connect to robot...");
   String host = addressField.getText();
+  displayStatus("Contacting rover.");
   try {
-    displayStatus("Contacting rover.");
-    videoSocket = new Socket(host, DEFAULT_VIDEO_PORT);
-    controlSocket = new Socket(host, DEFAULT_CONTROL_PORT);
-    displayStatus("Connection established!");
-    videoInput = videoSocket.getInputStream();
-    videoOutput = videoSocket.getOutputStream();
-    controlInput = controlSocket.getInputStream();
-    controlOutput = controlSocket.getOutputStream();
-  }
-  catch(Exception e){
-    displayStatus("Failed to connect to " + host + "!");
+    InternetAdapter videoAdapter = new InternetAdapter(new Socket(host, 
+                                                           DEFAULT_VIDEO_PORT));
+    InternetAdapter controlAdapter = new InternetAdapter(new Socket(host, 
+                                                         DEFAULT_CONTROL_PORT));
+    videoAdapter.connect();
+    controlAdapter.connect();
+    
+    videoChannel = videoAdapter;
+    controlChannel = controlAdapter;
+  } catch(UnknownHostException uhe) {
+    displayStatus("Unknown host " + host);
+  } catch(IOException ioe) {
+    displayStatus("Error while trying to open sockets!");
   }
 }
 
 /* 
    Add a string to the status area.
 */
-void displayStatus(String status){
+void displayStatus(String status) {
   //  println(status);
   String current_text = statusArea.text();
   current_text += "\n" + status;
@@ -357,33 +353,33 @@ void displayStatus(String status){
 /*
   Request an image from the robot so we can display it.
 */
-PImage requestImage(){
+PImage requestImage() {
   // TODO Expand this to work with the real protocol.
   // Read the image from the network into a buffered image
-  try{
-    if(!image_request_pending){
-      videoOutput.write("IMAGE;".getBytes());
-      videoOutput.flush();
-      image_request_pending = true;
+  if(!image_request_pending) {
+    videoChannel.write("IMAGE;".getBytes());
+    videoChannel.flush();
+    image_request_pending = true;
+  }
+
+  if(videoChannel.available() > 0) {
+    // Allocate more than we need into a flexible buffer.
+    ByteBuffer buffer = ByteBuffer.allocate(2000*1100);
+    while(videoChannel.available() > 0) {
+      buffer.put((byte) videoChannel.read());
     }
 
-    if(videoInput.available() > 0){
-      // Allocate more than we need into a flexible buffer.
-      ByteBuffer buffer = ByteBuffer.allocate(2000*1100);
-      while(videoInput.available() > 0){
-        buffer.put((byte) videoInput.read());
-      }
-
-      InputStream imageBufferStream = new ByteArrayInputStream(buffer.array());
+    InputStream imageBufferStream = new ByteArrayInputStream(buffer.array());
+    try {
       BufferedImage image = ImageIO.read(imageBufferStream);
 
       // Since it's possible that we didn't get an image back, we'll check for
       // nulls.
-      if(image != null){
+      if(image != null) {
         // Create a Processing-compatible image buffer for the read image...
         PImage pimage = new PImage(image.getWidth(), image.getHeight(), 
                                    PConstants.ARGB);
-        // Read the buffered image's pixel data into the Processing-compatible buffer
+        // Read the buffered image's pixel data into the Processing buffer
         image.getRGB(0, 0, pimage.width, pimage.height, 
                      pimage.pixels, 0, pimage.width);
         pimage.updatePixels();
@@ -392,10 +388,10 @@ PImage requestImage(){
       } else {
         return null;
       }
-    } else {
+    } catch (IOException ioe) {
       return null;
     }
-  } catch (IOException ioe){
+  } else {
     return null;
   }
 }
@@ -403,15 +399,10 @@ PImage requestImage(){
 /*
   Free up our network resources so we can close cleanly.
 */
-void cleanUp(){
-  if(videoSocket != null){
-    try{
-      videoOutput.write("QUIT;".getBytes());
-      videoInput.close();
-      videoOutput.close();
-      videoSocket.close();
-    } catch (IOException ioe){
-      // Do nothing, since it doesn't matter; we're closing shop.
-    }
+void cleanUp() {
+  if(videoChannel != null) {
+    controlChannel.write("QUIT;".getBytes());
+    videoChannel.close();
+    controlChannel.close();
   }
 }
