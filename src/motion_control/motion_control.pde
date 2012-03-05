@@ -1,148 +1,44 @@
 /* -*- mode: c++; fill-column: 100; -*- */
 /*
-  Motion control Arduino sketch for the robot's servomotors. 
+  Simplified motion control Arduino sketch for the robot's servomotors. 
 
-  Responds to commands over serial in order to move the robot. The system uses CmdMessenger to
-  handle serial communications.
-
-  Set speed: 4,<right_value>,<left_value>; 
-  Move a servo at the given speed. Takes values from 0-255 in base 64 encoding.
-
-  Read: 5;  
-  Read the current position of the motor encoders.
+  Commands:
+  'b': Reverse move for 1 second.
+  'f': Forward move for 1 second.
+  'r': Right (clockwise) rotation of ~30 degrees.
+  'l': Left (counter-clockwise) rotation of ~30 degrees.
 */
 
-#include <Base64.h>
-#include <CmdMessenger.h>
 #include <Servo.h>
 #include <Streaming.h>
-
-// Communications variables:
-char command_separator = ';';
-char field_separator = ',';
-CmdMessenger cmdMessenger = CmdMessenger(Serial, field_separator, command_separator);
-
-// Servo/Wheel info:
-const float radius = 3.0;           // Wheel radius
-const float circ = 2 * PI * radius; // Wheel circumference
-const float degrees_per_tick = 20;  // Encoder resolution
-
-// Target move distance. When this is nonzero loop() will move forward this number of ticks.
-int target_dist = 0;
-
-struct EncodedServo {
-  Servo servo;
-  int encoder_interrupt;
-  int zero_point;
-  int mid_point;
-  int speed;
-  int ticks;
-  long int last_tick;
-};
+#include "EServo.h"
 
 EncodedServo left_servo;
 EncodedServo right_servo;
 
-// Arduino -> PC messages
-enum {
-  kCOMM_ERROR = 000,
-  kACK = 001,
-  kARDUINO_READY = 002,
-  kERR = 003,
-
-  kSEND_CMDS_END, // 004
-};
-
-// PC -> Arduino commands
-messengerCallbackFunction messengerCallbacks[] =
-  {
-    set_speed,        // 004 - Matches index of kSEND_CMDS_END above.
-    read_encoders,    // 005
-    read_speed,       // 006
-    move_dist,        // 007
-    zero_servos,      // 008
-    rotate_angle,     // 009
-  };
-
-// ## Speed Control
-
-void set_speed(){
-  // We'll loop through the arguments
-  int servo_num = 0;
-  while(cmdMessenger.available()){
-    char buf[10] = { 0x00 };
-    cmdMessenger.copyString(buf, 10);
-    cmdMessenger.sendCmd(kACK, buf);
-    char decoded_buf[10] = { 0x00 };
-    base64_decode(decoded_buf, buf, 10);
-
-    // checking to see which side we should set.
-    if(servo_num == 0){ 
-      right_servo.speed = (int) decoded_buf[0];
-    } 
-    else if(servo_num == 1){
-      left_servo.speed = (int) decoded_buf[0];
-    }
-    servo_num++;
-  }
-  cmdMessenger.sendCmd(kACK, "Speed set");
-}
-
-void read_encoders(){
-  // Get encoder data and send it to the computer
-  Serial.print("1");
-  Serial.print(field_separator);
-  Serial.print(right_servo.ticks, DEC);
-  Serial.print(field_separator);
-  Serial.print(left_servo.ticks, DEC);
-  Serial.println(command_separator);
-}
-
-void read_speed(){
-  // Print current speed information to the serial port
-  Serial.print("1");
-  Serial.print(field_separator);
-  Serial.print(right_servo.speed, DEC);
-  Serial.print(field_separator);
-  Serial.print(left_servo.speed, DEC);
-  Serial.println(command_separator);
-}
+const int ticks_per_rev = 20;
+const int cruise_speed = 18;
 
 // ## Movement
 
-void move_dist(){
-  // Parse distance from packet, and set it as global target
-  if(cmdMessenger.available()){
-    char buf[10] = { 0x00 };
-    cmdMessenger.copyString(buf, 10);
-    char decoded_buf[10] = { 0x00 };
-
-    // Targets will be base 64 encoded bytes, so we'll need to decode them.
-    base64_decode(decoded_buf, buf, 10);
-    target_dist = decoded_buf[0];
-
-    // Send a confirmation back to the desktop.
-    Serial.print("1,");
-    Serial.print("Target distance set at ");
-    Serial.print(target_dist, DEC);
-    Serial.print("cm;");
-
-    // Re-encode the distance in terms of ticks; these are a lot easier to track.
-    target_dist = dist_to_ticks(target_dist);
+void move(bool forward){
+  if(forward){
+    Serial << "Moving forward." << endl;
+    // TODO move forward
+  } else {
+    Serial << "Moving backward." << endl;
+    // TODO move back
   }
-  cmdMessenger.sendCmd(kACK, "Moving forward.");
 }
 
-void rotate_angle(){
-  // TODO Implement rotate_angle
-  return;
-}
-
-int dist_to_ticks(int dist){
-  // The number of ticks for a given distance is given by the number of revolutions divided by the
-  // number of ticks per revolution.
-  int ticks = (dist/circ) / (360/degrees_per_tick);
-  return ticks;
+void rotate(bool clockwise){
+  if(clockwise){
+    Serial << "Rotating clockwise." << endl;
+    // TODO
+  } else {
+    Serial << "Rotating counter-clockwise." << endl;
+    // TODO
+  }
 }
 
 void right_encoder_tick(){
@@ -156,99 +52,93 @@ void left_encoder_tick(){
 }
 
 // ## Calibration
+// These two variables will be modified in interrupt contexts, so they need to be declared volatile.
+volatile int speed_calibration = 0;
+volatile long int last_calibration_tick;
 
-int speed_calibration = 0;
-long int last_calibration_tick;
-void zero_servos(){
-  // Calibration routine:
-  // Set the servo to full speed
-  speed_calibration = 180;
+// Find the point at which the servos move at a given speed.
+int calibrate_servo_speed(EncodedServo target_servo, long speed, float error, bool forward){
+  // Start the servo at the given speed. This allows us to go both ways when calibrating, in order
+  // to calibrate both sides' servos.
+  if(forward){
+    speed_calibration = 180;
+  } else {
+    speed_calibration = 0;
+  }
   noInterrupts();
-  left_servo.servo.write(speed_calibration);
+  target_servo.servo.write(speed_calibration);
 
   // Attach a calibration interrupt which decreases speed every time the encoder ticks
-  detachInterrupt(left_servo.encoder_interrupt);
-  attachInterrupt(left_servo.encoder_interrupt, calibration_isr, RISING);
-  interrupts();
+  detachInterrupt(target_servo.encoder_interrupt);
+  if(forward){
+    attachInterrupt(target_servo.encoder_interrupt, calibration_isr_dec, RISING);
+  } else {
+    attachInterrupt(target_servo.encoder_interrupt, calibration_isr_inc, RISING);
+  }
   last_calibration_tick = millis();
-  cmdMessenger.sendCmd(kACK, "Starting left servo calibration");
-  while(millis() - last_calibration_tick < 5000){
-    Serial.print("Current speed: ");
-    Serial.print(1.0 / (millis() - last_calibration_tick));
-    Serial.println("rps");
-    left_servo.servo.write(speed_calibration);
+
+  interrupts();
+
+  // Wait for the speed to be reached, within acceptable error.
+  while(abs(interval_to_speed(millis() - last_calibration_tick) - speed) > error){
+    target_servo.servo.write(speed_calibration);
   };
 
-  // Save the speed.
-  left_servo.zero_point = speed_calibration - 1;
-  cmdMessenger.sendCmd(kACK, "Left servo calibrated");
+  // Clean up by detaching interrupts:
+  detachInterrupt(target_servo.encoder_interrupt);
+  // It's up to you to reattach the right interrupt; I'm not going to do it for you.
+  return speed_calibration;
+}
 
-  // Repeat for the other servo.
-  speed_calibration = 180;
-  noInterrupts();
-  right_servo.servo.write(speed_calibration);
+// Calculate the current rotation speed in rpm from an encoder tick interval
+inline float interval_to_speed(long interval){
+  // Rotations per second = (ticks/second) / (ticks/rev)
+  float tpm = 60000.0 / interval;
+  return tpm / ticks_per_rev;
+}
 
-  detachInterrupt(right_servo.encoder_interrupt);
-  attachInterrupt(right_servo.encoder_interrupt, calibration_isr, RISING);
-  interrupts();
-  last_calibration_tick = millis();
-  cmdMessenger.sendCmd(kACK, "Starting right servo calibration");
-  while(millis() - last_calibration_tick < 5000){
-    right_servo.servo.write(speed_calibration);
-  };
+void calibrate_all(){
+  Serial << "Calibrating..." << endl;
+  // Bringing these parameters down will make the calibration take longer, but will detect smaller
+  // errors. Keep in mind that there is a certain level of precision one gets with servos; past a
+  // certain point, making the acceptable error smaller just makes you wait longer for the same
+  // result. 
+  left_servo.zero_point = calibrate_servo_speed(left_servo, 0, 0.8, false);
+  right_servo.zero_point = calibrate_servo_speed(right_servo, 0, 0.8, true);
 
-  right_servo.zero_point = speed_calibration - 1;
-  cmdMessenger.sendCmd(kACK, "Right servo calibrated");
-
-  // Clean up by reattaching interrupts:
-  detachInterrupt(left_servo.encoder_interrupt);
-  detachInterrupt(right_servo.encoder_interrupt);
-  attachInterrupt(left_servo.encoder_interrupt, left_encoder_tick, HIGH);
-  attachInterrupt(right_servo.encoder_interrupt, right_encoder_tick, HIGH);
+  left_servo.cruise_point = calibrate_servo_speed(left_servo, cruise_speed, 1, false);
+  right_servo.cruise_point = calibrate_servo_speed(right_servo, cruise_speed, 1, true);
+  
+  left_servo.servo.write(left_servo.zero_point);
+  right_servo.servo.write(right_servo.zero_point);
+  Serial << "Done." << endl;
 }
 
 /* 
-   Calibration Interrupt Service Routine, used to find the zero point on the servos.
+   Calibration Interrupt Service Routine.
 */
 void calibration_isr(){
   last_calibration_tick = millis();
   speed_calibration--;
 }
 
-// ## Communications
-
-void arduino_ready(){
-  cmdMessenger.sendCmd(kACK,"Ready");
+void calibration_isr_dec(){
+  last_calibration_tick = millis();
+  speed_calibration--;
 }
 
-void unknown_cmd(){
-  cmdMessenger.sendCmd(kERR,"Unknown command");
+void calibration_isr_inc(){
+  last_calibration_tick = millis();
+  speed_calibration++;
 }
 
-void attach_callbacks(messengerCallbackFunction* callbacks){
-  int i = 0;
-  int offset = kSEND_CMDS_END;
-  while(callbacks[i])
-    {
-      cmdMessenger.attach(offset+i, callbacks[i]);
-      i++;
-    }
-}
+// ## Body functionality
 
 void setup(){
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
 
   Serial.begin(115200);
-  // Make output more readable.
-  cmdMessenger.print_LF_CR(); 
-  
-  // Attach default/generic callback methods.
-  cmdMessenger.attach(kARDUINO_READY, arduino_ready);
-  cmdMessenger.attach(unknown_cmd);
-
-  // Attach application callback methods.
-  attach_callbacks(messengerCallbacks);
 
   // Set up encoders.
   attachInterrupt(0, right_encoder_tick, HIGH);
@@ -263,31 +153,38 @@ void setup(){
   right_servo.servo.attach(10);
   right_servo.encoder_interrupt = 1;
 
-  zero_servos();
   blink(3);
-
-  arduino_ready();  
+  Serial << "Ready." << endl;
 }
 
 void loop(){
-  // Process incoming serial data, if any
-  cmdMessenger.feedinSerialData();
-
-  // TODO Handle servo speed adjustments here. If the motors get too far out of sync, we'll have to
-  // synchronize them.
-  if(target_dist > left_servo.ticks){
-    left_servo.servo.write(left_servo.speed);
-  }
-  else {
-    left_servo.servo.write(left_servo.zero_point);
-  }
-  if(target_dist > right_servo.ticks){
-    right_servo.servo.write(right_servo.speed);
-  }
-  else {
-    right_servo.servo.write(right_servo.zero_point);
+  // Read a char from serial buffer,
+  if(Serial.available() > 0){
+    char cmd = Serial.read();
+    // see if they match any of our commands, and execute appropriate functions for each.
+    switch(cmd){
+    case 'f':
+      move(true);
+      break;
+    case 'b':
+      move(false);
+      break;
+    case 'r':
+      rotate(true);
+      break;
+    case 'l':
+      rotate(false);
+      break;
+    case 'c':
+      calibrate_all();
+      break;
+    default:
+      Serial << "Unknown command " << cmd << "." << endl;
+    }
   }
 }
+
+// ## Utility functions
 
 void toggle(int pin){
   digitalWrite(pin, !digitalRead(pin));
