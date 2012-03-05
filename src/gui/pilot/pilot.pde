@@ -15,11 +15,21 @@ import java.nio.ByteBuffer;
 import javax.imageio.ImageIO;
 
 // GUI objects
-ControlP5 controlP5;
+// We'll use controlP5 for buttons and such; we'll need 3 of them.
+ControlP5 netControlP5;
+ControlP5 btControlP5;
+ControlP5 sharedControlP5;
+Button btConnectButton;
+
+// This guy stores our network address.
 Textfield addressField;
+
+// Shared status area.
 Textarea statusArea;
+
 TextButton btButton;
 TextButton netButton;
+
 color bgColor = color(0, 0, 0);
 color selectedTextColor = color(0, 143, 191); //color(0, 115, 153);
 color unselectedTextColor = color(0xFB, 0xFB, 0xFB);
@@ -48,6 +58,7 @@ int DEFAULT_CONTROL_PORT = 9495;
 SocketAdapter videoChannel;
 SocketAdapter controlChannel;
 boolean image_request_pending = false;
+Bluetooth bt;
 
 void setup() {
   // General window setup.
@@ -92,9 +103,15 @@ void setup() {
   start_x = (width - 220)/2;
   start_y = (height/2)+25;
 
-  controlP5 = new ControlP5(this);
-  // We'll draw the GUI manually; otherwise, this will draw constantly.
-  controlP5.setAutoDraw(false);
+  netControlP5 = new ControlP5(this);
+  btControlP5 = new ControlP5(this);
+  sharedControlP5 = new ControlP5(this);
+
+  // We'll draw the GUI manually; otherwise, these will draw in weird ways.
+  netControlP5.setAutoDraw(false);
+  btControlP5.setAutoDraw(false);
+  sharedControlP5.setAutoDraw(false);
+
   drawConnectGui();
 
   // Overlay buttons, for when we're connected to the robot.
@@ -104,6 +121,16 @@ void setup() {
                                     loadImage("top_selected.png"));
   doorDetectButton = new OverlayButton(this, 60, 0, loadImage("right_normal.png"), 
                                        loadImage("right_selected.png"));
+  
+  // Create an RFCOMM Bluetooth object for carrying out BT scans
+  try{
+    bt = new Bluetooth(this, 0x0003);
+    bt.find();
+  } catch (RuntimeException re){
+    // Why they chose to use a RuntimeException here is beyond me.
+    displayStatus("Unable to initiate Bluetooth scan.\n" 
+                  + "Is everything turned on?");
+  }
 }
 
 void draw() {
@@ -137,8 +164,58 @@ void draw() {
     netButton.draw();
 
     if(netButton.isSelected()) {
-      controlP5.draw();
+      netControlP5.draw();
     }
+    if(btButton.isSelected()) {
+      btControlP5.draw();
+    }
+    sharedControlP5.draw();
+  }
+}
+
+/*
+  Request an image from the robot so we can display it.
+*/
+PImage requestImage() {
+  // TODO Expand this to work with the real protocol.
+  // Read the image from the network into a buffered image
+  if(!image_request_pending) {
+    videoChannel.write("IMAGE;".getBytes());
+    videoChannel.flush();
+    image_request_pending = true;
+  }
+
+  if(videoChannel.available() > 0) {
+    // Allocate more than we need into a flexible buffer.
+    ByteBuffer buffer = ByteBuffer.allocate(2000*1100);
+    while(videoChannel.available() > 0) {
+      buffer.put((byte) videoChannel.read());
+    }
+
+    InputStream imageBufferStream = new ByteArrayInputStream(buffer.array());
+    try {
+      BufferedImage image = ImageIO.read(imageBufferStream);
+
+      // Since it's possible that we didn't get an image back, we'll check for
+      // nulls.
+      if(image != null) {
+        // Create a Processing-compatible image buffer for the read image...
+        PImage pimage = new PImage(image.getWidth(), image.getHeight(), 
+                                   PConstants.ARGB);
+        // Read the buffered image's pixel data into the Processing buffer
+        image.getRGB(0, 0, pimage.width, pimage.height, 
+                     pimage.pixels, 0, pimage.width);
+        pimage.updatePixels();
+        image_request_pending = false;
+        return pimage;
+      } else {
+        return null;
+      }
+    } catch (IOException ioe) {
+      return null;
+    }
+  } else {
+    return null;
   }
 }
 
@@ -163,6 +240,9 @@ void computeImageScaling(int xSize, int ySize) {
   imgOffsetY = (height - imgScaleY) / 2;
 }
 
+/*
+  Handle mouse click events.
+ */
 void mouseClicked() {
   // This event is only interesting if we're not connected to the robot; for
   // using the overlay buttons we need more fine grained control. However, for
@@ -180,7 +260,7 @@ void mouseClicked() {
 }
 
 /*
-  Respond to mouse input events.
+  Respond to mouse drag events by selecting overlay UI elements.
 */
 void onMouseDragged(int button, int x, int y) {
   if(videoChannel != null && mouseDown) {
@@ -237,6 +317,49 @@ void onMouseReleased(int button, int x, int y) {
 }
 
 /*
+  Draw the title text.
+ */
+void drawTitle() {
+  // Nice, beautiful title text!
+  textMode(SCREEN);
+  noSmooth();
+  textFont(libertine);
+  noStroke();
+  fill(255);
+  text("Pilot", start_x, start_y - 50);
+}
+
+/*
+  Draw the connection UI.
+*/
+void drawConnectGui() {
+  drawTitle();
+
+  // Text buttons for connection type
+  btButton = new TextButton(this, "Bluetooth", 
+                            start_x - 2, start_y - 35, 117, 25);
+  btButton.setFont(dejavusans);
+  btButton.setColors(unselectedTextColor, selectedTextColor);
+  btButton.setSelected(true);
+
+  netButton = new TextButton(this, "Network", start_x + 128, start_y - 35, 25);
+  netButton.setFont(dejavusans);
+  netButton.setColors(unselectedTextColor, selectedTextColor);
+  
+  // Some GUI elements. The spacing here is important.
+  addressField = netControlP5.addTextfield("address", start_x, start_y, 140, 20);
+  netControlP5.addButton("connect", 1, start_x + 159, start_y, 70, 20);
+
+  // We'll need a reference to this in order to change the color.
+  btConnectButton = btControlP5.addButton("connect", 1, 
+                                          start_x + 70, start_y, 70, 20);
+
+  // Text area for status messages. Should be the same width as above controls.
+  statusArea = sharedControlP5.addTextarea("status", "", start_x, start_y + 50, 
+                                     215, 300);
+}
+
+/*
   When the user drags the mouse, draw an overlay button ring around it.
  */
 void drawOverlayUi(int x, int y) {
@@ -266,71 +389,36 @@ void keyTyped() {
 }
 
 /*
-  Draw the connection UI.
-*/
-void drawConnectGui() {
-  drawTitle();
-
-  // Text buttons for connection type
-  btButton = new TextButton(this, "Bluetooth", 
-                            start_x - 2, start_y - 35, 117, 25);
-  btButton.setFont(dejavusans);
-  btButton.setColors(unselectedTextColor, selectedTextColor);
-  btButton.setSelected(true);
-
-  netButton = new TextButton(this, "Network", start_x + 128, start_y - 35, 25);
-  netButton.setFont(dejavusans);
-  netButton.setColors(unselectedTextColor, selectedTextColor);
-  
-  // Some GUI elements. The spacing here is important.
-  addressField = controlP5.addTextfield("address", start_x, start_y, 140, 20);
-  controlP5.addButton("connect", 1, start_x + 159, start_y, 70, 20);
-
-  // Text area for status messages. Should be the same width as above controls.
-  statusArea = controlP5.addTextarea("status", "", start_x, start_y + 50, 
-                                     215, 300);
-}
-
-/*
-  Draw the title text.
- */
-void drawTitle() {
-  // Nice, beautiful title text!
-  textMode(SCREEN);
-  noSmooth();
-  textFont(libertine);
-  noStroke();
-  fill(255);
-  text("Pilot", start_x, start_y - 50);
-}
-
-/*
   Handle UI events generated by ControlP5.
 */
 void controlEvent(ControlEvent ev) {
   Controller controller = ev.controller();
 
-  // We only have one button, so...
-  if(controller.name().equals("connect")) {
-    connectToRobot();
+  // We need to know which UI element fired this event. Both of our connect
+  // buttons are named "connect" because controlP5 is weird; so we'll have to
+  // take a look at our much more sane TextButtons.
+  if(netButton.isSelected()){
+    connectToRobotInternet();
+  } else {
+    connectToRobotBluetooth();
   }
 }
 
 /*
   Connect to the robot over the network.
 */
-void connectToRobot() {
-  //  print("Trying to connect to robot...");
+void connectToRobotInternet() {
+  // User's in network connect mode, so we'll try to connect over the Internet
   String host = addressField.getText();
   displayStatus("Contacting rover.");
   try {
     InternetAdapter videoAdapter = new InternetAdapter(new Socket(host, 
-                                                           DEFAULT_VIDEO_PORT));
+                                                                  DEFAULT_VIDEO_PORT));
     InternetAdapter controlAdapter = new InternetAdapter(new Socket(host, 
-                                                         DEFAULT_CONTROL_PORT));
+                                                                    DEFAULT_CONTROL_PORT));
     videoAdapter.connect();
     controlAdapter.connect();
-    
+
     videoChannel = videoAdapter;
     controlChannel = controlAdapter;
   } catch(UnknownHostException uhe) {
@@ -338,6 +426,10 @@ void connectToRobot() {
   } catch(IOException ioe) {
     displayStatus("Error while trying to open sockets!");
   }
+}
+
+void connectToRobotBluetooth(){
+  displayStatus("Trying to connect over Bluetooth.");
 }
 
 /* 
@@ -348,52 +440,6 @@ void displayStatus(String status) {
   String current_text = statusArea.text();
   current_text += "\n" + status;
   statusArea.setText(current_text);
-}
-
-/*
-  Request an image from the robot so we can display it.
-*/
-PImage requestImage() {
-  // TODO Expand this to work with the real protocol.
-  // Read the image from the network into a buffered image
-  if(!image_request_pending) {
-    videoChannel.write("IMAGE;".getBytes());
-    videoChannel.flush();
-    image_request_pending = true;
-  }
-
-  if(videoChannel.available() > 0) {
-    // Allocate more than we need into a flexible buffer.
-    ByteBuffer buffer = ByteBuffer.allocate(2000*1100);
-    while(videoChannel.available() > 0) {
-      buffer.put((byte) videoChannel.read());
-    }
-
-    InputStream imageBufferStream = new ByteArrayInputStream(buffer.array());
-    try {
-      BufferedImage image = ImageIO.read(imageBufferStream);
-
-      // Since it's possible that we didn't get an image back, we'll check for
-      // nulls.
-      if(image != null) {
-        // Create a Processing-compatible image buffer for the read image...
-        PImage pimage = new PImage(image.getWidth(), image.getHeight(), 
-                                   PConstants.ARGB);
-        // Read the buffered image's pixel data into the Processing buffer
-        image.getRGB(0, 0, pimage.width, pimage.height, 
-                     pimage.pixels, 0, pimage.width);
-        pimage.updatePixels();
-        image_request_pending = false;
-        return pimage;
-      } else {
-        return null;
-      }
-    } catch (IOException ioe) {
-      return null;
-    }
-  } else {
-    return null;
-  }
 }
 
 /*

@@ -55,6 +55,10 @@ class TextButton {
     buttonText = text;
   }
 
+  public String getText(){
+    return buttonText;
+  }
+
   public boolean contains(int x, int y){
     if(x >= textX && x <= textX+textW){
       if(y >= textY && y <= textY+textH){
