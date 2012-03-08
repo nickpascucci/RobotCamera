@@ -34,7 +34,11 @@ class ResizePipe:
         # and then call resize() with it to resize the image.
         # cv.CreateMat is kind of weird since it takes rows then columns as
         # arguments rather than the usual (x, y) ordering.
-        resized_image = cv.CreateMat(self.y_res, self.x_res, cv.CV_8UC3)
+        if type(image) == cv.iplimage:
+            resized_image = cv.CreateImage((self.x_res, self.y_res),
+                                           image.depth, image.nChannels)
+        else:
+            resized_image = cv.CreateMat(self.y_res, self.x_res, image.type)
         cv.Resize(image, resized_image)
 
         return resized_image
