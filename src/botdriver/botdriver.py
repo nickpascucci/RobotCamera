@@ -15,7 +15,10 @@ class BotDriver:
         else:
             print "Bringing up network interface..."
             self.comms = NetworkCommunicationsModule()
-        self.camera = CameraModule()
+
+        # If your video device is on a different /dev/ node, you need to modify
+        # this to take that into account.
+        self.camera = CameraModule(camera=3)
         self.motion = ArduinoMotionModule()
 
         # TODO Perhaps we should break this out into an 'install()' method
