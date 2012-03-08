@@ -78,6 +78,9 @@ class NetworkCommunicationsModule:
 
     def send_media(self, media):
         """Send data using the media channel."""
+        # The first thing we expect on the receive side is a string containing
+        # the length of the media file, followed by a semicolon.
+        self.control_conn.sendall("%s;" % len(media))
         self.video_conn.sendall(media)
 
     def close(self):

@@ -208,10 +208,40 @@ PImage requestImage() {
   }
 
   if(videoChannel.available() > 0) {
-    // Allocate more than we need into a flexible buffer.
-    ByteBuffer buffer = ByteBuffer.allocate(2000*1100);
-    while(videoChannel.available() > 0) {
+    // The control channel should reply with a string specifying the number of
+    // bytes to expect. We should wait until we've read all of them, otherwise
+    // we'll get a rendering problem and a funky texture instead of a beautiful
+    // image. 
+    byte[] sizeString = new byte[20];
+    int position = 0;
+    byte lastReadByte = 'a';
+    while(position < sizeString.length){
+      lastReadByte = (byte) controlChannel.read();
+      // Just like all other communications, this one is terminated with a
+      // semicolon. We'll read all of the characters up to the semi, then exit
+      // the loop.
+      if(lastReadByte != ';'){
+        sizeString[position] = lastReadByte;
+        position++;
+      } else {
+        // Now we should get rid of the unnecessary bytes.
+        byte[] tmp = new byte[position];
+        System.arraycopy(sizeString, 0, tmp, 0, position);
+        sizeString = tmp;
+        break;
+      }
+    }
+
+    // Great, we have the size! Now we need to parse it into a number.
+    int numBytes = Integer.parseInt(new String(sizeString));
+
+    ByteBuffer buffer = ByteBuffer.allocate(numBytes);
+    int bytesRead = 0;
+
+    while(bytesRead < numBytes) {
+      // Ideally this should block until there's more data to read.
       buffer.put((byte) videoChannel.read());
+      bytesRead++;
     }
 
     InputStream imageBufferStream = new ByteArrayInputStream(buffer.array());
@@ -400,14 +430,26 @@ void keyTyped() {
   if(key == ESC) {
     cleanUp();
     exit();
-  } else if(key == 's' || key == 'S') {
-    // Move backwards
-    println("Moving backward 5cm.");
-    controlChannel.write("MOVE -5;".getBytes());
-  } else if(key == 'w' || key == 'W') {
-    // Move forwards.
-    println("Moving forward 5cm.");
-    controlChannel.write("MOVE 5;".getBytes());
+  } 
+
+  if(controlChannel != null){
+    if(key == 's' || key == 'S') {
+      // Move backwards
+      println("Moving backward.");
+      controlChannel.write("MOVE BACKWARD;".getBytes());
+    } else if(key == 'w' || key == 'W') {
+      // Move forwards.
+      println("Moving forward.");
+      controlChannel.write("MOVE FORWARD;".getBytes());
+    } else if(key == 'a' || key == 'A') {
+      // Move backwards
+      println("Rotating left.");
+      controlChannel.write("ROTATE COUNTERCLOCKWISE;".getBytes());
+    } else if(key == 'd' || key == 'D') {
+      // Move forwards.
+      println("Rotating right.");
+      controlChannel.write("ROTATE CLOCKWISE;".getBytes());
+    }
   }
 }
 
