@@ -1,7 +1,7 @@
 """BotDriver module designed to handle input from a webcam."""
 
 import cv
-from pipelines import NopPipe, EdgeDetectPipe, DoorDetectPipe
+from pipelines import *
 
 __author__ = "Nick Pascucci (npascut1@gmail.com)"
 
@@ -13,10 +13,8 @@ class CameraModule:
     EDGE_DETECT_MODE = 1
     DOOR_DETECT_MODE = 2
     
-    def __init__(self, camera=-1, x_res=640, y_res=480):
+    def __init__(self, camera=-1):
         self.capture = cv.CaptureFromCAM(camera)
-        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, x_res)
-        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, y_res)
         self.set_mode(self.RAW_VIDEO_MODE)
         
     def capture_image_to_file(self, filename):
@@ -46,16 +44,17 @@ class CameraModule:
     def set_mode(self, mode):
         """Set the video pipeline mode for this camera module."""
         if mode == self.RAW_VIDEO_MODE:
-            # Set up raw video pipeline; this should be a no-op.
             print "Setting up raw video pipeline."
-            self.first_pipe = NopPipe(None)
+            self.first_pipe = ResizePipe(None)
         elif mode == self.EDGE_DETECT_MODE:
             print "Setting up edge detection pipeline."
-            self.first_pipe = EdgeDetectPipe(None)
+            last_pipe = ResizePipe(None)
+            self.first_pipe = EdgeDetectPipe(last_pipe)
         elif mode == self.DOOR_DETECT_MODE:
             print "Setting up door detection pipeline."
-            last_pipe = DoorDetectPipe(None)
-            self.first_pipe = EdgeDetectPipe(last_pipe)
+            last_pipe = ResizePipe(None)
+            second_pipe = DoorDetectPipe(last_pipe)
+            self.first_pipe = EdgeDetectPipe(second_pipe)
 
     def close(self):
         """Close the module and perform any clean up necessary."""
