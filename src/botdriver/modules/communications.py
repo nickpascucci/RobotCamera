@@ -125,10 +125,12 @@ class BluetoothCommunicationsModule:
             for sock in rlist:
                 if sock == self.video_socket:
                     self.video_conn, address = sock.accept()
+                    sock.close()
+                    print "Accepted connection from %s." % (address,)
                 elif sock == self.control_socket:
                     self.control_conn, address = sock.accept()
+                    sock.close()
                     print "Accepted connection from %s." % (address,)
-                sock.close()
                 available_sockets.remove(sock)
 
 

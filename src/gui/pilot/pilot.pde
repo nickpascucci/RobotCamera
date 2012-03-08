@@ -57,8 +57,14 @@ int DEFAULT_VIDEO_PORT = 9494;
 int DEFAULT_CONTROL_PORT = 9495;
 SocketAdapter videoChannel;
 SocketAdapter controlChannel;
-boolean image_request_pending = false;
+
 Bluetooth bt;
+Client botVideoBt;
+Client botControlBt;
+String BT_VIDEO_SERVICE_NAME = "BotDriverVideo";
+String BT_CONTROL_SERVICE_NAME = "BotDriverControl";
+
+boolean image_request_pending = false;
 
 void setup() {
   // General window setup.
@@ -124,12 +130,14 @@ void setup() {
   
   // Create an RFCOMM Bluetooth object for carrying out BT scans
   try{
-    bt = new Bluetooth(this, 0x0003);
+    bt = new Bluetooth(this, Bluetooth.UUID_L2CAP);
     bt.find();
+    displayStatus("Beginning service discovery...");
   } catch (RuntimeException re){
     // Why they chose to use a RuntimeException here is beyond me.
     displayStatus("Unable to initiate Bluetooth scan.\n" 
                   + "Is everything turned on?");
+    displayStatus(re.toString());
   }
 }
 
@@ -160,13 +168,27 @@ void draw() {
     // then check if we need to draw additional ControlP5 elements.
     background(0);
     drawTitle();
-    btButton.draw();
+    if(botVideoBt == null || botControlBt == null){
+      btButton.setEnabled(false);
+    } else {
+      btButton.setEnabled(true);
+    }
+      btButton.draw();
     netButton.draw();
 
     if(netButton.isSelected()) {
       netControlP5.draw();
     }
     if(btButton.isSelected()) {
+      if(botVideoBt == null || botControlBt == null){
+        // If we don't have a Bluetooth connection available, we should indicate
+        // that to the user. ControlP5 doesn't have a method to disable buttons
+        // (which is ridiculous) so we'll just have to change the color.
+        btConnectButton.setColorBackground(color(100));
+        btConnectButton.setColorForeground(color(100));
+      } else {
+        
+      }
       btControlP5.draw();
     }
     sharedControlP5.draw();
@@ -249,10 +271,10 @@ void mouseClicked() {
   // general text buttons, this event is very useful; we'll check to see if the
   // mouse is in any of them and select them if so.
   if(videoChannel == null) {
-    if(btButton.contains(mouseX, mouseY)) {
+    if(btButton.contains(mouseX, mouseY) && btButton.isEnabled()) {
       btButton.setSelected(true);
       netButton.setSelected(false);
-    } else if (netButton.contains(mouseX, mouseY)) {
+    } else if (netButton.contains(mouseX, mouseY) && netButton.isEnabled()) {
       netButton.setSelected(true);
       btButton.setSelected(false);
     }
@@ -340,11 +362,12 @@ void drawConnectGui() {
                             start_x - 2, start_y - 35, 117, 25);
   btButton.setFont(dejavusans);
   btButton.setColors(unselectedTextColor, selectedTextColor);
-  btButton.setSelected(true);
+  btButton.setSelected(false);
 
   netButton = new TextButton(this, "Network", start_x + 128, start_y - 35, 25);
   netButton.setFont(dejavusans);
   netButton.setColors(unselectedTextColor, selectedTextColor);
+  netButton.setSelected(true);
   
   // Some GUI elements. The spacing here is important.
   addressField = netControlP5.addTextfield("address", start_x, start_y, 140, 20);
@@ -430,6 +453,37 @@ void connectToRobotInternet() {
 
 void connectToRobotBluetooth(){
   displayStatus("Trying to connect over Bluetooth.");
+}
+
+void serviceDiscoveryCompleteEvent(Service[] services){
+  displayStatus("Service discovery complete.");
+  displayStatus("Found " + services.length + " services.");
+  for(Service service : services){
+    displayStatus("INFO: found service " + service.name);
+    if(service.name.equals(BT_VIDEO_SERVICE_NAME)){
+      displayStatus("Found a BotDriver video service!");
+      try {
+        botVideoBt = service.connect();
+      } catch (RuntimeException re){
+        // Man, what's with all these RuntimeExceptions? They really want your
+        // program to die, don't they?
+        displayStatus("An error occurred while trying to contact the service.");
+      }
+    }
+
+    if(service.name.equals(BT_CONTROL_SERVICE_NAME)){
+      displayStatus("Found a BotDriver control service!");
+      try {
+        botControlBt = service.connect();
+      } catch (RuntimeException re){
+        displayStatus("An error occurred while trying to contact the service.");
+        displayStatus(re.toString());
+      }
+    }
+  }
+  if(botVideoBt == null && botControlBt == null){
+    displayStatus("Scan complete.");
+  }
 }
 
 /* 
