@@ -62,11 +62,11 @@ class BotDriver:
             # as is directing movement.
             elif packet.startswith("MOVE"):
                 packet_parts = packet.split()
-                desired_motion = int(packet_parts[1])
+                desired_motion = packet_parts[1]
                 self.motion.move(desired_motion)
             elif packet.startswith("ROTATE"):
                 packet_parts = packet.split()
-                rotation = int(packet_parts[1])
+                rotation = packet_parts[1]
                 self.motion.rotate(rotation)
 
     def clean_up(self):
