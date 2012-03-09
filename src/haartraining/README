@@ -1,0 +1,6 @@
+This directory was plucked from the OpenCV source in order to build the tools
+needed to train Haar-like classifiers that use the OpenCV libs. To build these
+tools, use the build_tools.sh script. To learn how to use them, see this site:
+
+http://note.sonots.com/SciSoftware/haartraining.html
+
