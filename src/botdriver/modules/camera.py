@@ -53,7 +53,7 @@ class CameraModule:
         elif mode == self.DOOR_DETECT_MODE:
             print "Setting up door detection pipeline."
             last_pipe = ResizePipe(None)
-            second_pipe = DoorDetectPipe(last_pipe)
+            second_pipe = ScanningDoorDetectPipe(last_pipe)
             self.first_pipe = EdgeDetectPipe(second_pipe)
 
     def close(self):
