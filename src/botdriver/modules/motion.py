@@ -2,7 +2,6 @@
 
 """This module provides communications with an Arduino for motion control."""
 
-import base64
 import serial
 
 __author__ = "Nick Pascucci (npascut1@gmail.com)"
@@ -16,8 +15,7 @@ class ArduinoMotionModule():
     CALIBRATE = 'c'
     STOP = 's'
     
-    def __init__(self, port="/dev/ttyUSB0", baud=115200):
-        return # Remove when actual communications are desired.
+    def __init__(self, port="/dev/ttyUSB1", baud=115200):
         self.port = port
         self.conn = serial.Serial(port, baud, timeout=1)
 
@@ -42,7 +40,7 @@ class ArduinoMotionModule():
     def send(self, message):
         """Send a packet over the wire."""
         print "Sending message:", message
-        return # Remove this when you want to actually send data.
+#        return # Remove this when you want to actually send data.
         self.conn.write(message)
         
     def close(self):
