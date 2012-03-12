@@ -1,8 +1,8 @@
 #! /usr/bin/env python
-
 """This module provides communications with an Arduino for motion control."""
 
 import serial
+import time
 
 __author__ = "Nick Pascucci (npascut1@gmail.com)"
 
@@ -14,10 +14,11 @@ class ArduinoMotionModule():
     BACKWARD = 'b'
     CALIBRATE = 'c'
     STOP = 's'
-    
-    def __init__(self, port="/dev/ttyUSB1", baud=115200):
+
+    def __init__(self, port="/dev/ttyUSB0", baud=115200):
         self.port = port
-        self.conn = serial.Serial(port, baud, timeout=1)
+        self.baud = baud
+        self._connect()
 
     def move(self, direction):
         """Move in the given direction."""
@@ -36,13 +37,23 @@ class ArduinoMotionModule():
             self.send(self.ROTATE_CCW)
         else:
             print "Unkown movement command ", direction
-        
+
     def send(self, message):
         """Send a packet over the wire."""
         print "Sending message:", message
-#        return # Remove this when you want to actually send data.
-        self.conn.write(message)
-        
+        try:
+            self.conn.write(message)
+        except serial.SerialException as se:
+            print "Caught SerialException. Attempting to reconnect in 1 second."
+            time.sleep(1)
+            self._connect()
+            # We'll try to resend the message once we're connected. If this
+            # fails, we'll just have to die from the exception.
+            self.conn.write(message)
+
     def close(self):
         """Close the module and perform any clean up necessary."""
         pass
+
+    def _connect(self):
+        self.conn = serial.Serial(self.port, self.baud, timeout=1)

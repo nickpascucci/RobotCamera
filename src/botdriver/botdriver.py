@@ -7,7 +7,7 @@ from modules import ArduinoMotionModule
 from modules import NetworkCommunicationsModule, BluetoothCommunicationsModule
 
 class BotDriver:
-    def __init__(self, use_bluetooth = True):
+    def __init__(self, use_bluetooth=True, motion_port="/dev/ttyUSB0"):
         # TODO Break all modules into their own threads and implement queues
         if use_bluetooth:
             print "Bringing up Bluetooth interface..."
@@ -19,7 +19,7 @@ class BotDriver:
         # If your video device is on a different /dev/ node, you need to modify
         # this to take that into account.
         self.camera = CameraModule(camera=3)
-        self.motion = ArduinoMotionModule()
+        self.motion = ArduinoMotionModule(port=motion_port)
 
         # TODO Perhaps we should break this out into an 'install()' method
         # or perform a list comprehension (use inheritence to define modules)
@@ -78,10 +78,21 @@ class BotDriver:
             module.close()
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "-b":
-        bd = BotDriver()
-    else:
-        bd = BotDriver(use_bluetooth = False)
+    bluetooth = False
+    port = "/dev/ttyUSB0"
+    if len(sys.argv) > 1:
+        for num, arg in enumerate(sys.argv):
+            if arg == "-b":
+                bluetooth = True
+            elif arg == "-p":
+                print "Setting port."
+                if len(sys.argv) > num+1:
+                    port = sys.argv[num+1]
+                else:
+                    print "Expected port after '-p' argument."
+
+    bd = BotDriver(use_bluetooth=bluetooth, motion_port=port)
+
     try:
         print "Bot driver up and waiting for connections."
         bd.wait_for_connections()
@@ -96,4 +107,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
