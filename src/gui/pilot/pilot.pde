@@ -177,6 +177,7 @@ void draw() {
     netButton.draw();
 
     if(netButton.isSelected()) {
+      addressField.setFocus(true);
       netControlP5.draw();
     }
     if(btButton.isSelected()) {
