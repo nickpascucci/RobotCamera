@@ -1,4 +1,6 @@
 from noppipe import NopPipe
 from edgedetectpipe import EdgeDetectPipe
 from doordetectpipe import ScanningDoorDetectPipe
+from doordetectpipe import HaarDoorDetectPipe
 from resizepipe import ResizePipe
+from segmentationpipe import ShotgunSegmentationPipe
