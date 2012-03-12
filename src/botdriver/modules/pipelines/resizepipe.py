@@ -41,4 +41,8 @@ class ResizePipe:
             resized_image = cv.CreateMat(self.y_res, self.x_res, image.type)
         cv.Resize(image, resized_image)
 
-        return resized_image
+        if self.next_pipe:
+            processed_image = self.next_pipe.process(resized_image)
+            return processed_image
+        else:
+            return resized_image
