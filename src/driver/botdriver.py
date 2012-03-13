@@ -11,7 +11,7 @@ try:
 except ImportError:
     # If we encounter an import error, we need to amend our path for the other
     # modules so they can import settings.
-    sys.path.append(os.path.realpath(__file__))
+    sys.path.append(os.path.dirname(os.path.realpath(__file__)))
     import driver.settings as settings
 
 class BotDriver:
