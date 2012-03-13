@@ -3,6 +3,7 @@
 
 import serial
 import time
+import driver.settings as settings
 
 __author__ = "Nick Pascucci (npascut1@gmail.com)"
 
@@ -15,9 +16,9 @@ class ArduinoMotionModule():
     CALIBRATE = 'c'
     STOP = 's'
 
-    def __init__(self, port="/dev/ttyUSB0", baud=115200):
-        self.port = port
-        self.baud = baud
+    def __init__(self):
+        self.port = settings.ARDUINO_PORT
+        self.baud = settings.ARDUINO_BAUD
         self._connect()
 
     def move(self, direction):

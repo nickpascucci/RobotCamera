@@ -2,14 +2,22 @@
 # Robot driver program: receives commands from Pilot and executes them.
 
 import sys
-from modules import CameraModule, CameraError
-from modules import ArduinoMotionModule
-from modules import NetworkCommunicationsModule, BluetoothCommunicationsModule
+import os.path
+from driver.modules import CameraModule, CameraError
+from driver.modules import ArduinoMotionModule
+from driver.modules import NetworkCommunicationsModule, BluetoothCommunicationsModule
+try:
+    import driver.settings as settings
+except ImportError:
+    # If we encounter an import error, we need to amend our path for the other
+    # modules so they can import settings.
+    sys.path.append(os.path.realpath(__file__))
+    import driver.settings as settings
 
 class BotDriver:
-    def __init__(self, use_bluetooth=True, motion_port="/dev/ttyUSB0"):
+    def __init__(self):
         # TODO Break all modules into their own threads and implement queues
-        if use_bluetooth:
+        if settings.USE_BLUETOOTH:
             print "Bringing up Bluetooth interface..."
             self.comms = BluetoothCommunicationsModule()
         else:
@@ -18,8 +26,8 @@ class BotDriver:
 
         # If your video device is on a different /dev/ node, you need to modify
         # this to take that into account.
-        self.camera = CameraModule(camera=3)
-        self.motion = ArduinoMotionModule(port=motion_port)
+        self.camera = CameraModule()
+        self.motion = ArduinoMotionModule()
 
         # TODO Perhaps we should break this out into an 'install()' method
         # or perform a list comprehension (use inheritence to define modules)
@@ -83,15 +91,15 @@ def main():
     if len(sys.argv) > 1:
         for num, arg in enumerate(sys.argv):
             if arg == "-b":
-                bluetooth = True
+                settings.USE_BLUETOOTH = True
             elif arg == "-p":
                 print "Setting port."
                 if len(sys.argv) > num+1:
-                    port = sys.argv[num+1]
+                    settings.ARDUINO_PORT = sys.argv[num+1]
                 else:
                     print "Expected port after '-p' argument."
 
-    bd = BotDriver(use_bluetooth=bluetooth, motion_port=port)
+    bd = BotDriver()
 
     try:
         print "Bot driver up and waiting for connections."

@@ -2,6 +2,7 @@
 
 import cv
 from pipelines import *
+import driver.settings as settings
 
 __author__ = "Nick Pascucci (npascut1@gmail.com)"
 
@@ -13,8 +14,8 @@ class CameraModule:
     EDGE_DETECT_MODE = 1
     DOOR_DETECT_MODE = 2
     
-    def __init__(self, camera=-1):
-        self.capture = cv.CaptureFromCAM(camera)
+    def __init__(self):
+        self.capture = cv.CaptureFromCAM(settings.DEFAULT_CAMERA)
         self.set_mode(self.RAW_VIDEO_MODE)
         
     def capture_image_to_file(self, filename):

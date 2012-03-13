@@ -10,6 +10,7 @@ import select
 import socket
 import uuid
 from util import netutils
+import driver.settings as settings
 
 __author__ = "Nick Pascucci (npascut1@gmail.com)"
 
@@ -31,7 +32,6 @@ class NetworkCommunicationsModule:
         # data will always go out on the command socket.
         self.video_socket.bind((self.addr, self.DEFAULT_VIDEO_PORT))
         self.control_socket.bind((self.addr, self.DEFAULT_CONTROL_PORT))
-
 
     def wait_for_connections(self):
         # Begin listening with no timeout, and get ready for incoming requests.
@@ -90,6 +90,7 @@ class NetworkCommunicationsModule:
         if self.control_conn:
             self.control_conn.close()
 
+            
 class BluetoothCommunicationsModule:
     """An interface to Bluetooth radio links."""
     UUID = 'c917b21c-492f-4cb6-bc87-77f4031b88af'
@@ -136,7 +137,6 @@ class BluetoothCommunicationsModule:
                     print "Accepted connection from %s." % (address,)
                 available_sockets.remove(sock)
 
-
     def get_packets(self):
         """Return all of the packets from the Bluetooth interface."""
         rlist, wlist, xlist = select.select(
@@ -149,7 +149,6 @@ class BluetoothCommunicationsModule:
             packets.append(packet)
 
         return packets
-
 
     def send_command(self, command):
         self.control_conn.sendall(command)
