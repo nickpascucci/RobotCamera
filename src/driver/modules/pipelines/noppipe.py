@@ -8,6 +8,8 @@ class NopPipe:
         self.next_pipe = next_pipe
 
     def process(self, image):
-        return image
-        
-
+        if self.next_pipe:
+            processed_image = self.next_pipe.process(image)
+            return processed_image
+        else:
+            return image

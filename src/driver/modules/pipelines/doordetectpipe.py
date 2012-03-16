@@ -15,7 +15,7 @@ class ScanningDoorDetectPipe:
     def __init__(self, next_pipe):
         self.next_pipe = next_pipe
 
-    def process(self, image):
+    def process(self, image, bar_size=1):
         # First thing's first: we need to get sums for each row and column in
         # the image.
         # TODO Implement parameterization of the bar width
@@ -26,13 +26,19 @@ class ScanningDoorDetectPipe:
         # OpenCV matrices are a pain because they're not iterable; I wrote a
         # method to sum them up to make life a little easier.
         for row in range(image.height):
-            row_sums.append(self.sum_cvmat(image[row]))
+            neighbors = [self.sum_cvmat(image[row + i])
+                         for i in range(-bar_size, bar_size)
+                         if row + i >= 0 and row + i < image.height]
+            row_sums.append(sum(neighbors))
 
         # Horizontal scan. As the image is stored in rows, we need to take the
         # nth element from each row in order to form a column. Just a little
         # more work than the vertical scan.
         for col in range(image.width):
-            col_sums.append(self.sum_cvmat(image[:, col]))
+            neighbors = [self.sum_cvmat(image[:, col + i])
+                         for i in range(-bar_size, bar_size)
+                         if col + i >= 0 and col + i < image.width]
+            col_sums.append(sum(neighbors))
 
         # We want the index of the largest 2 elements of our sum list.
         # I don't feel like writing a max function, so...
@@ -52,14 +58,17 @@ class ScanningDoorDetectPipe:
         top_left = (min(max_col_1, max_col_2), max(max_row_1, max_row_2))
         bottom_right = (max(max_col_1, max_col_2), min(max_row_1, max_row_2))
 
-        print "Door detected at %s,%s" % (top_left, bottom_right)
-
         image = self.grayscale_to_color(image)
         
         # Now that we know where the door is in the image, we'll highlight it.
         # This is supposed to be red; I guess OpenCV uses BGR instead of RGB.
         cv.Rectangle(image, top_left, bottom_right, cv.Scalar(0, 0, 255))
-        return image
+
+        if self.next_pipe:
+            processed_image = self.next_pipe.process(image)
+            return processed_image
+        else:
+            return image
 
     def sum_cvmat(self, cvmat, channel=0):
         """Sum a one-dimensional cvmat instance.
@@ -87,3 +96,25 @@ class ScanningDoorDetectPipe:
         color = cv.CreateMat(image.height, image.width, cv.CV_8UC3)
         cv.CvtColor(image, color, cv.CV_GRAY2RGB)
         return color
+
+class HaarDoorDetectPipe:
+    """An implementation of a door detector which uses a CV cascade classifier.
+
+    This detector should be called on the same type of image used in training
+    the classifier."""
+
+    def __init__(self, next_pipe, path="haarcascade-door.xml"):
+        self.next_pipe = next_pipe
+        self.hc = cv.Load(path)
+
+    def process(self, image):
+        doors = cv.HaarDetectObjects(image, self.hc, cv.CreateMemStorage())
+
+        for (x, y, w, h), n in doors:
+            cv.Rectangle(image, (x, y), (x+w, y+h), 255)
+        
+        if self.next_pipe:
+            processed_image = self.next_pipe.process(image)
+            return processed_image
+        else:
+            return image
