@@ -10,22 +10,22 @@ autonomous navigation.
 
 # Bill of Materials
 ### Parts:
-4 8"x0.75" aluminum right angle extrusion
-8 4"x0.75" aluminum right angle extrusion
-84 M2.5 x 10 Socket head cap screws
-8 M2.5 x 20 Socket head cap screws
-92 M2.5 Nuts
-1 PandaBoard, with SD card
-1 Arduino
-2 Continuous rotation servos
-2 P1230 Photogates & supporting hardware (refer to your photogate's datasheet.)
-1 USB webcam (I used a V7 CS2021.)
++ 4 8"x0.75" aluminum right angle extrusion
++ 8 4"x0.75" aluminum right angle extrusion
++ 84 M2.5 x 10 Socket head cap screws
++ 8 M2.5 x 20 Socket head cap screws
++ 92 M2.5 Nuts
++ 1 PandaBoard, with SD card
++ 1 Arduino
++ 2 Continuous rotation servos
++ 2 P1230 Photogates & supporting hardware (refer to your photogate's datasheet.)
++ 1 USB webcam (I used a V7 CS2021.)
 
 ### Tools:
-3D printer (I recommend using FDM'd ABS for this for its mechanical qualities.)
-Drill press
-Soldering iron
-Tweezers (highly recommended for both soldering and tightening fasteners.)
++ 3D printer (I recommend using FDM'd ABS for this for its mechanical qualities.)
++ Drill press
++ Soldering iron
++ Tweezers (highly recommended for both soldering and tightening fasteners.)
 
 # How to build this crazy thing
 Ok, so you want to build your own robot. How do you get started?
